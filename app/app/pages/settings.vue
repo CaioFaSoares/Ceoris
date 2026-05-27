@@ -8,16 +8,15 @@ useSeoMeta({
 <template>
   <UDashboardPage>
     <UDashboardPanel grow>
-      <UDashboardNavbar title="Configurações e Provisionamento">
-        <template #right>
-        </template>
-      </UDashboardNavbar>
+      <UDashboardNavbar title="Configurações e Provisionamento" />
 
       <UDashboardPanelContent>
-        <div class="flex items-center justify-center h-full text-gray-500 dark:text-gray-400">
-          Módulo em construção...
+        <div class="p-4 flex flex-col gap-6 max-w-4xl mx-auto w-full">
+          <SettingsSystemHealthCard />
+          <SettingsDiscordWizardCard />
         </div>
       </UDashboardPanelContent>
     </UDashboardPanel>
   </UDashboardPage>
 </template>
+

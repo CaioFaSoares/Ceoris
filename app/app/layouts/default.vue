@@ -16,7 +16,7 @@ const links = [[{
 }, {
   label: 'Configurações',
   icon: 'i-heroicons-cog-8-tooth',
-  to: '/setup',
+  to: '/settings',
   onSelect: () => {
     open.value = false
   }
