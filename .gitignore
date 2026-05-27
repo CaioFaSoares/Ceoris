@@ -25,18 +25,22 @@ n8n/
 
 # PocketBase local data (tracking databases and configs in the repository)
 # If you want to ignore everything in pb_data, uncomment the line below:
-db/
+db/pb_data
 db/*.db-shm
 db/*.db-wal
 
 
 
 # Go compiled bin/out files
-backend/bin/
-backend/*.out
-backend/*.test
-backend/*.prof
+server/bin/
+server/*.out
+server/*.test
+server/*.prof
+server/tmp/
+server/main
 
 # OS-specific
 .DS_Store
 Thumbs.db
+
+app/.pnpm-store
