@@ -30,6 +30,9 @@ watchEffect(() => {
 
 // 3. Mapeamento para o formato do DropdownMenu
 const items = computed<DropdownMenuItem[][]>(() => {
+  const config = useRuntimeConfig()
+  const inviteUrl = `https://discord.com/oauth2/authorize?client_id=${config.public.discordAppId}&permissions=8&integration_type=0&scope=bot`
+
   const guildItems = guilds.value ? guilds.value.map(guild => ({
     label: guild.name,
     // Se houver ícone no Discord usa avatar, senão usa ícone genérico
@@ -45,7 +48,9 @@ const items = computed<DropdownMenuItem[][]>(() => {
     [
       {
         label: 'Adicionar Servidor',
-        icon: 'i-heroicons-plus-circle'
+        icon: 'i-heroicons-plus-circle',
+        to: inviteUrl,
+        target: '_blank'
       },
       {
         label: 'Sincronizar Dados',

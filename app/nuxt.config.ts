@@ -11,7 +11,8 @@ export default defineNuxtConfig({
     apiBase: process.env.NUXT_API_BASE || 'http://localhost:12000',
     public: {
       // Public keys are exposed to the client (Browser)
-      apiBase: process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:12000'
+      apiBase: process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:12000',
+      discordAppId: process.env.DISCORD_APP_ID || '1505920684256264293'
     }
   },
 
