@@ -8,8 +8,8 @@ services:
       dockerfile: Dockerfile.prod
     container_name: ceoris-nuxt
     restart: always
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"
     environment:
       - NUXT_PUBLIC_API_BASE=${NUXT_PUBLIC_API_BASE:-http://server:12000}
     networks:
@@ -24,8 +24,8 @@ services:
       dockerfile: Dockerfile
     container_name: ceoris-goserver
     restart: always
-    ports:
-      - "12000:12000"
+    expose:
+      - "12000"
     volumes:
       - ./data/notebooks:/root/data/notebooks
     environment:
@@ -50,8 +50,8 @@ services:
       dockerfile: Dockerfile
     container_name: ceoris-pocketbase
     restart: always
-    ports:
-      - "8090:8090"
+    expose:
+      - "8090"
     volumes:
       - ./db/pb_data:/root/pb_data
       - ./db/pb_migrations:/root/pb_migrations
