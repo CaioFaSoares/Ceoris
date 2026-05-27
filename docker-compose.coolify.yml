@@ -1,52 +1,67 @@
+version: '3.8'
+
 services:
-  chantry-frontend:
+  # 1. App (Nuxt 4)
+  app:
     build:
       context: ./app
-      dockerfile: Dockerfile
-    container_name: chantry_streamlit
-    expose:
-      - "8501"
-    volumes:
-      - ./app:/app
+      dockerfile: Dockerfile.prod
+    container_name: ceoris-nuxt
+    restart: always
+    ports:
+      - "3000:3000"
     environment:
-      - STREAMLIT_SERVER_HEADLESS=true
-      - STREAMLIT_SERVER_PORT=8501
-      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
-    restart: unless-stopped
+      - NUXT_PUBLIC_API_BASE=${NUXT_PUBLIC_API_BASE:-http://server:12000}
+    networks:
+      - ceoris_net
     depends_on:
-      - chantry-go-server
+      - server
 
-  chantry-pocketbase:
-    build:
+  # 2. Server (Go Fiber)
+  server:
+    build: 
       context: ./server
       dockerfile: Dockerfile
-    container_name: chantry_pocketbase
-    expose:
-      - "8090"
+    container_name: ceoris-goserver
+    restart: always
+    ports:
+      - "12000:12000"
     volumes:
-      - ./db:/db
+      - ./data/notebooks:/root/data/notebooks
     environment:
-      - PB_ADMIN_EMAIL=${PB_ADMIN_EMAIL}
-      - PB_ADMIN_PASSWORD=${PB_ADMIN_PASSWORD}
-    restart: unless-stopped
-    command: [ "./main", "serve", "--http=0.0.0.0:8090", "--dir=/db" ]
-
-  chantry-go-server:
-    build:
-      context: ./server
-      dockerfile: Dockerfile
-    container_name: chantry_go_server
-    expose:
-      - "12000"
-    environment:
+      - ENV=production
       - PORT=12000
-      - POCKETBASE_URL=http://chantry-pocketbase:8090
+      - TIMEZONE=${TIMEZONE:-America/Sao_Paulo}
       - PB_ADMIN_EMAIL=${PB_ADMIN_EMAIL}
       - PB_ADMIN_PASSWORD=${PB_ADMIN_PASSWORD}
       - DISCORD_APP_ID=${DISCORD_APP_ID}
       - DISCORD_PUBLIC_KEY=${DISCORD_PUBLIC_KEY}
       - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
-      - TIMEZONE=${TIMEZONE:-America/Sao_Paulo}
-    restart: unless-stopped
+      - POCKETBASE_URL=http://database:8090
+    networks:
+      - ceoris_net
     depends_on:
-      - chantry-pocketbase
+      - database
+
+  # 3. Banco de Dados (PocketBase Customizado)
+  database:
+    build: 
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: ceoris-pocketbase
+    restart: always
+    ports:
+      - "8090:8090"
+    volumes:
+      - ./db/pb_data:/root/pb_data
+      - ./db/pb_migrations:/root/pb_migrations
+    environment:
+      - PB_ADMIN_EMAIL=${PB_ADMIN_EMAIL}
+      - PB_ADMIN_PASSWORD=${PB_ADMIN_PASSWORD}
+    networks:
+      - ceoris_net
+    command: ["./main", "serve", "--http=0.0.0.0:8090"]
+
+networks:
+  ceoris_net:
+    driver: bridge

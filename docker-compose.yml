@@ -1,48 +1,65 @@
 version: '3.8'
 
 services:
-  # ==========================================
-  # BACKEND: Go Server + PocketBase Embedded
-  # ==========================================
-  api:
-    build: 
+  # 1. App (Nuxt 4)
+  app:
+    build:
+      context: ./app
+      dockerfile: Dockerfile.dev
+    container_name: ceoris-nuxt
+    ports:
+      - "12001:3000"
+    environment:
+      - NUXT_PUBLIC_API_BASE=http://server:12000 # Comunicação via rede interna
+      - CHOKIDAR_USEPOLLING=true # Hot reload
+    volumes:
+      - ./app:/app
+      - /app/node_modules
+      - /app/.nuxt
+    networks:
+      - ceoris_net
+    depends_on:
+      - server
+
+  # 2. Server (Go Fiber)
+  server:
+    build:
       context: ./server
       dockerfile: Dockerfile
-    container_name: ceoris-api
-    restart: unless-stopped
+    container_name: ceoris-goserver
     ports:
-      - "12000:12000" # API Rest (Fiber)
-      - "8090:8090"   # Admin UI do PocketBase
-    volumes:
-      - ./db:/app/db
-      - ./pb_data:/app/pb_data
-      - ./pb_migrations:/app/pb_migrations
-      # Pasta onde os Cadernos (.md) e anexos serão salvos no formato Flat-file
-      - ./data/notebooks:/app/data/notebooks
-    env_file:
-      - .env
+      - "12000:12000"
     environment:
       - ENV=development
       - PORT=12000
       - TIMEZONE=America/Sao_Paulo
-
-  # ==========================================
-  # FRONTEND: Nuxt 4 App (Admin & Cadernos)
-  # ==========================================
-  web:
-    build:
-      context: ./app
-      dockerfile: Dockerfile
-    container_name: ceoris-web
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
+      - POCKETBASE_URL=http://database:8090 # Comunicação interna com o banco
     volumes:
-      # Sincronização local para dev caso não use o container pra rodar o pnpm dev
-      - ./app:/app
-      - /app/node_modules
-    environment:
-      # Diz ao Nuxt onde a API do Go está
-      - NUXT_PUBLIC_API_BASE=http://api:12000
+      - ./data/notebooks:/root/data/notebooks
+    networks:
+      - ceoris_net
     depends_on:
-      - api
+      - database
+    env_file:
+      - .env
+
+  # 3. Banco de Dados (PocketBase Customizado)
+  database:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: ceoris-pocketbase
+    ports:
+      - "12090:8090" # Portal de Admin acessível em http://localhost:12090/_/
+    volumes:
+      - ./db/pb_data:/root/pb_data
+      - ./db/pb_migrations:/root/pb_migrations # Aqui vai a nossa magia
+    networks:
+      - ceoris_net
+    command: ["./main", "serve", "--http=0.0.0.0:8090"]
+    env_file:
+      - .env
+
+networks:
+  ceoris_net:
+    driver: bridge

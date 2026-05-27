@@ -24,6 +24,7 @@ func LoadConfig() (*Config, error) {
 	// Attempt to load .env. If it doesn't exist, ignore as variables
 	// are expected to be injected via OS environment or Docker Compose.
 	_ = godotenv.Load()
+	_ = godotenv.Load("../.env")
 
 	timezone := os.Getenv("TIMEZONE")
 	if timezone == "" {

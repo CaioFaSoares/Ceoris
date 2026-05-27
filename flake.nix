@@ -22,7 +22,7 @@
 
             # Frontend (Nuxt 4 / Node)
             nodejs_22
-            corepack_22 # Fornece o pnpm nativamente
+            pnpm
             
             # Utils
             sqlite
@@ -31,9 +31,6 @@
 
           shellHook = ''
             export CGO_ENABLED=1
-            
-            # Habilita o pnpm através do corepack do Node
-            corepack enable pnpm
 
             echo "🌌 Bem-vindo ao ambiente de desenvolvimento do Ceoris!"
             echo "🛠️  Go version: \$(go version)"
