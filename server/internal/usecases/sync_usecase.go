@@ -45,15 +45,17 @@ type AdvancedSyncMetrics struct {
 
 // SyncUsecase orchestrates the logic to fetch, validate and persist Discord members into PocketBase
 type SyncUsecase struct {
-	discordService *discord.DiscordService
-	pbRepo         *pocketbase.Repository
+	discordService   *discord.DiscordService
+	pbRepo           *pocketbase.Repository
+	provisionUsecase *ProvisionUsecase
 }
 
 // NewSyncUsecase creates a new instance of SyncUsecase
-func NewSyncUsecase(discordService *discord.DiscordService, pbRepo *pocketbase.Repository) *SyncUsecase {
+func NewSyncUsecase(discordService *discord.DiscordService, pbRepo *pocketbase.Repository, provisionUsecase *ProvisionUsecase) *SyncUsecase {
 	return &SyncUsecase{
-		discordService: discordService,
-		pbRepo:         pbRepo,
+		discordService:   discordService,
+		pbRepo:           pbRepo,
+		provisionUsecase: provisionUsecase,
 	}
 }
 
@@ -210,8 +212,8 @@ func (u *SyncUsecase) SyncStudentsByRole(guildID string, roleID string) (Metrics
 	return metrics, nil
 }
 
-// AdvancedSync performs multi-role students and managers synchronization
-func (u *SyncUsecase) AdvancedSync(guildID string, payload AdvancedSyncPayload) (AdvancedSyncMetrics, error) {
+// AdvancedSync performs multi-role students synchronization using the guild's taxonomy and triggers auto-healing.
+func (u *SyncUsecase) AdvancedSync(guildID string) (AdvancedSyncMetrics, error) {
 	metrics := AdvancedSyncMetrics{}
 
 	// 1. Ensure Guild exists in PocketBase (Silent Upsert)
@@ -236,176 +238,45 @@ func (u *SyncUsecase) AdvancedSync(guildID string, payload AdvancedSyncPayload) 
 		}
 	}
 
-	// 2. Perform Students Sync if primary role is provided
-	if payload.Students.PrimaryRoleID != "" {
-		// Resolve Primary Role PB ID
-		primaryRolePBID, err := u.EnsureRoleExists(guildID, payload.Students.PrimaryRoleID, guildRecord.ID)
-		if err != nil {
-			return metrics, fmt.Errorf("failed to resolve primary role: %w", err)
-		}
-
-		// Resolve all Secondary Roles PB IDs
-		secondaryPBIDsMap := make(map[string]string)
-		for _, secRoleID := range payload.Students.SecondaryRoleIDs {
-			pbID, err := u.EnsureRoleExists(guildID, secRoleID, guildRecord.ID)
+	// 2. Perform Students Sync iterating over all SquadRoles defined in Taxonomy
+	if len(guildRecord.SquadRoles) > 0 {
+		for _, squadRoleID := range guildRecord.SquadRoles {
+			log.Printf("🚀 [ADV-SYNC] Syncing students for Squad Role %s", squadRoleID)
+			
+			// A. Executa a sincronização base de membros (Trazendo do Discord para o PocketBase)
+			roleMetrics, err := u.SyncStudentsByRole(guildID, squadRoleID)
 			if err != nil {
-				log.Printf("⚠️ Warning: Failed to resolve secondary role %s: %v", secRoleID, err)
-				continue
-			}
-			secondaryPBIDsMap[secRoleID] = pbID
-		}
-
-		// Fetch Primary Students from Discord
-		studentsList, err := u.discordService.GetGuildMembersByRole(guildID, payload.Students.PrimaryRoleID)
-		if err != nil {
-			return metrics, fmt.Errorf("failed to fetch students by primary role: %w", err)
-		}
-
-		for _, m := range studentsList {
-			metrics.StudentsProcessed++
-
-			// Intersect secondary roles of this member
-			var studentSecPBIDs []string
-			for _, memberRoleID := range m.Roles {
-				if pbID, ok := secondaryPBIDsMap[memberRoleID]; ok {
-					studentSecPBIDs = append(studentSecPBIDs, pbID)
-				}
-			}
-
-			var student pocketbase.StudentRecord
-			studentFound, err := u.pbRepo.FindFirstByDiscordAndGuild("students", m.ID, guildRecord.ID, &student)
-			if err != nil {
-				log.Printf("⚠️ Error querying student %s (%s) in guild %s: %v", m.Username, m.ID, guildRecord.ID, err)
+				log.Printf("❌ ERROR [ADV-SYNC] Failed to sync students for role %s: %v", squadRoleID, err)
 				continue
 			}
 
-			// Helper to compare slices of strings
-			slicesEqual := func(a, b []string) bool {
-				if len(a) != len(b) {
-					return false
-				}
-				for i := range a {
-					if a[i] != b[i] {
-						return false
-					}
-				}
-				return true
-			}
+			// Acumulando as métricas baseadas no retorno
+			metrics.StudentsProcessed += roleMetrics.TotalProcessed
+			metrics.StudentsInserted += roleMetrics.NewInserted
+			metrics.StudentsUpdated += roleMetrics.Updated
 
-			if studentFound {
-				// Check for changes
-				if student.Username != m.Username ||
-					student.Nickname != m.Nickname ||
-					student.RoleID != primaryRolePBID ||
-					student.GuildID != guildRecord.ID ||
-					!slicesEqual(student.SecondaryRoles, studentSecPBIDs) {
-
-					updateData := map[string]interface{}{
-						"username":        m.Username,
-						"nickname":        m.Nickname,
-						"role_id":         primaryRolePBID,
-						"secondary_roles": studentSecPBIDs,
-						"guild_id":        guildRecord.ID,
-					}
-					var updatedStudent pocketbase.StudentRecord
-					if err := u.pbRepo.UpdateRecord("students", student.ID, updateData, &updatedStudent); err != nil {
-						log.Printf("⚠️ Error updating student %s: %v", m.Username, err)
-						continue
-					}
-					metrics.StudentsUpdated++
-				}
-			} else {
-				// Insert new student
-				newStudent := pocketbase.StudentRecord{
-					DiscordID:      m.ID,
-					Username:       m.Username,
-					Nickname:       m.Nickname,
-					RoleID:         primaryRolePBID,
-					SecondaryRoles: studentSecPBIDs,
-					GuildID:        guildRecord.ID,
-					Status:         "active",
-				}
-				var createdStudent pocketbase.StudentRecord
-				if err := u.pbRepo.CreateRecord("students", newStudent, &createdStudent); err != nil {
-					log.Printf("⚠️ Error creating student %s: %v", m.Username, err)
-					continue
-				}
-				metrics.StudentsInserted++
-			}
-		}
-	}
-
-	// 3. Perform Managers Sync
-	for _, mgrRule := range payload.Managers {
-		if mgrRule.RoleID == "" || mgrRule.ManagerType == "" {
-			continue
-		}
-
-		mgrList, err := u.discordService.GetGuildMembersByRole(guildID, mgrRule.RoleID)
-		if err != nil {
-			log.Printf("⚠️ Warning: Failed to fetch managers for role %s: %v", mgrRule.RoleID, err)
-			continue
-		}
-
-		for _, m := range mgrList {
-			metrics.ManagersProcessed++
-
-			var manager pocketbase.ManagerRecord
-			mgrFound, err := u.pbRepo.FindFirstByDiscordID("managers", m.ID, &manager)
+			// B. Localizar o PB ID do cargo para verificar se há SquadChannelID (Categoria 1-on-1)
+			var roleRecord pocketbase.RoleRecord
+			roleFound, err := u.pbRepo.FindFirstByDiscordID("roles", squadRoleID, &roleRecord)
 			if err != nil {
-				log.Printf("⚠️ Error querying manager %s (%s): %v", m.Username, m.ID, err)
+				log.Printf("⚠️ Warning: Failed to query role %s in pocketbase after sync: %v", squadRoleID, err)
 				continue
 			}
 
-			// Format Name (fallback to Username)
-			name := m.Nickname
-			if name == "" {
-				name = m.Username
-			}
-
-			if mgrFound {
-				// Guild relation cascade append without duplicate
-				guildPBIDExists := false
-				for _, gID := range manager.Guilds {
-					if gID == guildRecord.ID {
-						guildPBIDExists = true
-						break
-					}
+			if roleFound && roleRecord.SquadChannelID != "" {
+				log.Printf("🛠️ [ADV-SYNC] Squad Role %s has associated Category %s. Triggering Auto-Heal...", squadRoleID, roleRecord.SquadChannelID)
+				
+				// Disparar o Auto Heal (ProvisionUsecase)
+				healMetrics, err := u.provisionUsecase.HealChannelsByCategory(guildID, roleRecord.SquadChannelID)
+				if err != nil {
+					log.Printf("❌ ERROR [ADV-SYNC] Failed to auto-heal channels for Category %s: %v", roleRecord.SquadChannelID, err)
+				} else {
+					log.Printf("✅ [ADV-SYNC] Auto-Heal completed for Category %s. Mapped: %d, Unmapped: %d", roleRecord.SquadChannelID, healMetrics.SuccessfullyMapped, healMetrics.UnmappedChannels)
 				}
-				updatedGuilds := manager.Guilds
-				if !guildPBIDExists {
-					updatedGuilds = append(updatedGuilds, guildRecord.ID)
-				}
-
-				if manager.Name != name || manager.Role != mgrRule.ManagerType || !guildPBIDExists {
-					updateData := map[string]interface{}{
-						"name":   name,
-						"role":   mgrRule.ManagerType,
-						"guilds": updatedGuilds,
-					}
-					var updatedMgr pocketbase.ManagerRecord
-					if err := u.pbRepo.UpdateRecord("managers", manager.ID, updateData, &updatedMgr); err != nil {
-						log.Printf("⚠️ Error updating manager %s: %v", name, err)
-						continue
-					}
-					metrics.ManagersUpdated++
-				}
-			} else {
-				// Insert new manager
-				newManager := pocketbase.ManagerRecord{
-					DiscordID: m.ID,
-					Name:      name,
-					Role:      mgrRule.ManagerType,
-					Guilds:    []string{guildRecord.ID},
-				}
-				var createdMgr pocketbase.ManagerRecord
-				if err := u.pbRepo.CreateRecord("managers", newManager, &createdMgr); err != nil {
-					log.Printf("⚠️ Error creating manager %s: %v", name, err)
-					continue
-				}
-				metrics.ManagersInserted++
 			}
 		}
+	} else {
+		log.Printf("⚠️ [ADV-SYNC] Guild %s has no SquadRoles mapped in its taxonomy. Skipping student sync.", guildID)
 	}
 
 	return metrics, nil

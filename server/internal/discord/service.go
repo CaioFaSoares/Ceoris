@@ -61,6 +61,21 @@ func (s *DiscordService) GetGuilds() ([]SimpleEntity, error) {
 	return guilds, nil
 }
 
+// GetGuild queries the Discord REST API to fetch a single server (Guild) by its ID.
+func (s *DiscordService) GetGuild(guildID string) (*SimpleEntity, error) {
+	log.Printf("[DISCORD REST] Enviando GET /guilds/%s...", guildID)
+	g, err := s.Session.Guild(guildID)
+	if err != nil {
+		log.Printf("[DISCORD REST] Erro GET /guilds/%s: %v", guildID, err)
+		return nil, err
+	}
+
+	return &SimpleEntity{
+		ID:   g.ID,
+		Name: g.Name,
+	}, nil
+}
+
 // GetGuildRoles queries the Discord REST API to fetch all roles declared in a
 // specific server, filtering out the default implicit '@everyone' role.
 func (s *DiscordService) GetGuildRoles(guildID string) ([]SimpleEntity, error) {

@@ -21,6 +21,27 @@ const links = [[{
     open.value = false
   }
 }, {
+  label: 'Cargos',
+  icon: 'i-heroicons-tag',
+  to: '/settings/roles',
+  onSelect: () => {
+    open.value = false
+  }
+}, {
+  label: 'Base de Alunos',
+  icon: 'i-heroicons-user-group',
+  to: '/settings/members',
+  onSelect: () => {
+    open.value = false
+  }
+}, {
+  label: 'Turmas e Turnos',
+  icon: 'i-heroicons-users',
+  to: '/settings/squads',
+  onSelect: () => {
+    open.value = false
+  }
+}, {
   label: 'Inteligência',
   icon: 'i-heroicons-chart-bar',
   to: '/inteligencia',

@@ -31,8 +31,8 @@ const { selectedGuildId, setGuildId, clearGuildId } = useAppContext()
 </script>
 
 <template>
-  <UDashboardPage>
-    <UDashboardPanel grow>
+  <UDashboardPanel grow>
+    <template #header>
       <UDashboardNavbar title="Sandbox: Polling e Fetching">
         <template #right>
           <div class="flex items-center gap-2">
@@ -45,74 +45,74 @@ const { selectedGuildId, setGuildId, clearGuildId } = useAppContext()
           </div>
         </template>
       </UDashboardNavbar>
+    </template>
 
-      <UDashboardPanelContent>
-        <div class="flex flex-col gap-4 max-w-2xl mx-auto py-8">
-          <UCard>
-            <template #header>
-              <h2 class="font-semibold text-lg">Testando Padrões do CEORIS-003</h2>
-              <p class="text-sm text-gray-500">
-                Abaixo está o resultado reativo de um endpoint do Go Server.
-              </p>
-            </template>
-            
-            <div v-if="status === 'pending'" class="text-yellow-500 flex items-center gap-2">
-              <UIcon name="i-lucide-loader-2" class="animate-spin" /> Carregando...
+    <template #body>
+      <div class="flex flex-col gap-4 max-w-2xl mx-auto py-8">
+        <UCard>
+          <template #header>
+            <h2 class="font-semibold text-lg">Testando Padrões do CEORIS-003</h2>
+            <p class="text-sm text-gray-500">
+              Abaixo está o resultado reativo de um endpoint do Go Server.
+            </p>
+          </template>
+          
+          <div v-if="status === 'pending'" class="text-yellow-500 flex items-center gap-2">
+            <UIcon name="i-lucide-loader-2" class="animate-spin" /> Carregando...
+          </div>
+          
+          <div v-else-if="status === 'error'" class="text-red-500">
+            Erro ao acessar o Go Daemon: {{ error?.message }}
+          </div>
+          
+          <div v-else>
+            <div class="mb-2">
+              <strong>Status do Polling:</strong> 
+              <UBadge :color="isActive ? 'green' : 'orange'">
+                {{ isActive ? 'Ativo (a cada 5s)' : 'Pausado' }}
+              </UBadge>
             </div>
-            
-            <div v-else-if="status === 'error'" class="text-red-500">
-              Erro ao acessar o Go Daemon: {{ error?.message }}
+            <pre class="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg overflow-auto text-sm">{{ serverHealth }}</pre>
+          </div>
+          
+          <template #footer>
+            <div class="text-xs text-gray-400">
+              Abra a aba Network (F12) e veja as requisições acontecendo de forma silenciosa.
             </div>
-            
-            <div v-else>
-              <div class="mb-2">
-                <strong>Status do Polling:</strong> 
-                <UBadge :color="isActive ? 'green' : 'orange'">
-                  {{ isActive ? 'Ativo (a cada 5s)' : 'Pausado' }}
-                </UBadge>
-              </div>
-              <pre class="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg overflow-auto text-sm">{{ serverHealth }}</pre>
-            </div>
-            
-            <template #footer>
-              <div class="text-xs text-gray-400">
-                Abra a aba Network (F12) e veja as requisições acontecendo de forma silenciosa.
-              </div>
-            </template>
-          </UCard>
+          </template>
+        </UCard>
 
-          <UCard>
-            <template #header>
-              <h2 class="font-semibold text-lg">Testando Contexto Global (CEORIS-012)</h2>
-              <p class="text-sm text-gray-500">
-                Estado compartilhado da Guilda selecionada usando `useCookie`.
-              </p>
-            </template>
-            
-            <div class="mb-4">
-              <strong>Guilda Atual:</strong> 
-              <span class="ml-2 font-mono" :class="selectedGuildId ? 'text-primary' : 'text-gray-500'">
-                {{ selectedGuildId || 'Nenhuma selecionada' }}
-              </span>
-            </div>
+        <UCard>
+          <template #header>
+            <h2 class="font-semibold text-lg">Testando Contexto Global (CEORIS-012)</h2>
+            <p class="text-sm text-gray-500">
+              Estado compartilhado da Guilda selecionada usando `useCookie`.
+            </p>
+          </template>
+          
+          <div class="mb-4">
+            <strong>Guilda Atual:</strong> 
+            <span class="ml-2 font-mono" :class="selectedGuildId ? 'text-primary' : 'text-gray-500'">
+              {{ selectedGuildId || 'Nenhuma selecionada' }}
+            </span>
+          </div>
 
-            <div class="flex items-center gap-2">
-              <UButton color="primary" @click="setGuildId('123456789')">
-                Setar Guilda (123456789)
-              </UButton>
-              <UButton color="white" variant="solid" @click="clearGuildId">
-                Limpar Guilda
-              </UButton>
+          <div class="flex items-center gap-2">
+            <UButton color="primary" @click="setGuildId('123456789')">
+              Setar Guilda (123456789)
+            </UButton>
+            <UButton color="white" variant="solid" @click="clearGuildId">
+              Limpar Guilda
+            </UButton>
+          </div>
+          
+          <template #footer>
+            <div class="text-xs text-gray-400">
+              Navegue para outra página e volte, ou dê F5 (Reload) para testar a persistência do Cookie!
             </div>
-            
-            <template #footer>
-              <div class="text-xs text-gray-400">
-                Navegue para outra página e volte, ou dê F5 (Reload) para testar a persistência do Cookie!
-              </div>
-            </template>
-          </UCard>
-        </div>
-      </UDashboardPanelContent>
-    </UDashboardPanel>
-  </UDashboardPage>
+          </template>
+        </UCard>
+      </div>
+    </template>
+  </UDashboardPanel>
 </template>

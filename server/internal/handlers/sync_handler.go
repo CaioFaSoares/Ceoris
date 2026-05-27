@@ -61,7 +61,7 @@ func (h *SyncHandler) HandleSyncMembers(c *fiber.Ctx) error {
 	})
 }
 
-// HandleAdvancedSync handles the advanced multi-role and manager sync request
+// HandleAdvancedSync handles the advanced multi-role and manager sync request using PocketBase Taxonomy
 func (h *SyncHandler) HandleAdvancedSync(c *fiber.Ctx) error {
 	guildID := c.Params("guildId")
 	if guildID == "" {
@@ -70,15 +70,8 @@ func (h *SyncHandler) HandleAdvancedSync(c *fiber.Ctx) error {
 		})
 	}
 
-	var payload usecases.AdvancedSyncPayload
-	if err := c.BodyParser(&payload); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid or malformed JSON request body",
-		})
-	}
-
 	log.Printf("[ADV-SYNC] Triggered advanced synchronization for Guild: %s", guildID)
-	metrics, err := h.syncUsecase.AdvancedSync(guildID, payload)
+	metrics, err := h.syncUsecase.AdvancedSync(guildID)
 	if err != nil {
 		log.Printf("❌ ERROR [AdvancedSync] for Guild ID %s: %v", guildID, err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{

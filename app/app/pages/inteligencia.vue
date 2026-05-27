@@ -6,18 +6,18 @@ useSeoMeta({
 </script>
 
 <template>
-  <UDashboardPage>
-    <UDashboardPanel grow>
+  <UDashboardPanel grow>
+    <template #header>
       <UDashboardNavbar title="Centro de Inteligência">
         <template #right>
         </template>
       </UDashboardNavbar>
+    </template>
 
-      <UDashboardPanelContent>
-        <div class="flex items-center justify-center h-full text-gray-500 dark:text-gray-400">
-          Módulo em construção...
-        </div>
-      </UDashboardPanelContent>
-    </UDashboardPanel>
-  </UDashboardPage>
+    <template #body>
+      <div class="flex items-center justify-center h-full text-gray-500 dark:text-gray-400">
+        Módulo em construção...
+      </div>
+    </template>
+  </UDashboardPanel>
 </template>

@@ -10,8 +10,8 @@ interface SystemHealth {
   status: string
 }
 
-// 1. Fetch Inicial via useAsyncData
-const { data: health, status, refresh } = await useAsyncData<SystemHealth>(
+// 1. Fetch Inicial (Lazy para não bloquear a renderização da página)
+const { data: health, status, refresh } = useLazyAsyncData<SystemHealth>(
   'system-health',
   () => useApi('/api/system/health'),
   {

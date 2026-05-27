@@ -7,9 +7,9 @@ interface SystemHealthPayload {
   }
 }
 
-// 1. Fetch da configuração do sistema reaproveitando a rota health (usa a mesma chave do monitor)
-const { data: healthPayload, status } = await useAsyncData<any>(
-  'system-health',
+// Fetch lazy com chave própria para não conflitar com SystemHealthCard
+const { data: healthPayload, status } = useLazyAsyncData<any>(
+  'discord-wizard-config',
   () => useApi('/api/system/health')
 )
 
@@ -75,10 +75,17 @@ const oauthUrl = computed(() => {
             2
           </div>
           <div>
-            <h4 class="text-sm font-semibold text-gray-900 dark:text-white">Configuração de Regras</h4>
-            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Uma vez adicionado, você precisará selecionar quais cargos (turmas) serão monitorados pelo motor de presença e provisionamento.
+            <h4 class="text-sm font-semibold text-gray-900 dark:text-white">Mapeamento de Cargos</h4>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400 mb-4">
+              Classifique os cargos do seu servidor entre Turmas, Mentores e Trilhas para que o Ceoris saiba quem é quem.
             </p>
+            <UButton
+              to="/settings/roles"
+              icon="i-heroicons-tag"
+              label="Taxonomia"
+              color="gray"
+              variant="solid"
+            />
           </div>
         </div>
 
@@ -87,10 +94,36 @@ const oauthUrl = computed(() => {
             3
           </div>
           <div>
+            <h4 class="text-sm font-semibold text-gray-900 dark:text-white">Regras de Turno</h4>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400 mb-4">
+              Configure os horários de check-in para cada uma das Turmas mapeadas.
+            </p>
+            <UButton
+              to="/settings/squads"
+              icon="i-heroicons-cog-8-tooth"
+              label="Configurar Turmas"
+              color="gray"
+              variant="solid"
+            />
+          </div>
+        </div>
+
+        <div class="flex gap-4">
+          <div class="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400 font-bold">
+            4
+          </div>
+          <div>
             <h4 class="text-sm font-semibold text-gray-900 dark:text-white">Inicialização de Dados</h4>
-            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400 mb-4">
               Finalize realizando a primeira sincronização para espelhar os membros do Discord no painel.
             </p>
+            <UButton
+              to="/settings/members"
+              icon="i-heroicons-users"
+              label="Sincronizar Alunos"
+              color="gray"
+              variant="solid"
+            />
           </div>
         </div>
 

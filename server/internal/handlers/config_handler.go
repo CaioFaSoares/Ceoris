@@ -4,20 +4,63 @@ import (
 	"log"
 	"regexp"
 
+	"chantry/server/internal/discord"
 	"chantry/server/internal/pocketbase"
 	"github.com/gofiber/fiber/v2"
 )
 
 // ConfigHandler coordinates incoming HTTP API requests for system configurations.
 type ConfigHandler struct {
-	repo *pocketbase.Repository
+	repo           *pocketbase.Repository
+	discordService *discord.DiscordService
 }
 
 // NewConfigHandler instantiates a new HTTP controller for configuration endpoints.
-func NewConfigHandler(repo *pocketbase.Repository) *ConfigHandler {
+func NewConfigHandler(repo *pocketbase.Repository, discordService *discord.DiscordService) *ConfigHandler {
 	return &ConfigHandler{
-		repo: repo,
+		repo:           repo,
+		discordService: discordService,
 	}
+}
+
+// resolveOrAutoCreateGuild tries to find a guild in PocketBase. If it doesn't exist, it fetches its name from Discord and creates it.
+func (h *ConfigHandler) resolveOrAutoCreateGuild(guildDiscordID string) (*pocketbase.GuildRecord, error) {
+	var guild pocketbase.GuildRecord
+	found, err := h.repo.FindFirstByDiscordID("guilds", guildDiscordID, &guild)
+	if err != nil {
+		return nil, err
+	}
+
+	if found {
+		return &guild, nil
+	}
+
+	// Not found, we need to auto-create
+	guildName := "Servidor (Auto-Sync)"
+	if dGuild, err := h.discordService.GetGuild(guildDiscordID); err == nil {
+		guildName = dGuild.Name
+	} else {
+		log.Printf("⚠️ Could not fetch real guild name from Discord for %s: %v", guildDiscordID, err)
+	}
+
+	newGuild := pocketbase.GuildRecord{
+		DiscordID: guildDiscordID,
+		Name:      guildName,
+		Status:    "active",
+	}
+
+	if err := h.repo.CreateRecord("guilds", newGuild, &guild); err != nil {
+		// Race condition: another concurrent request might have just created it
+		foundAgain, _ := h.repo.FindFirstByDiscordID("guilds", guildDiscordID, &guild)
+		if !foundAgain {
+			return nil, err
+		}
+		log.Printf("✅ Guild %s was created concurrently by another request", guildDiscordID)
+		return &guild, nil
+	}
+
+	log.Printf("✅ Auto-created missing Guild record for %s (PB ID: %s)", guildDiscordID, guild.ID)
+	return &guild, nil
 }
 
 // HandleGetGuildRolesConfig fetches roles and their configurations associated with a Discord guild ID.
@@ -30,20 +73,14 @@ func (h *ConfigHandler) HandleGetGuildRolesConfig(c *fiber.Ctx) error {
 	}
 
 	// 1. Resolve Discord Guild ID to PocketBase Guild Record
-	var guild pocketbase.GuildRecord
-	found, err := h.repo.FindFirstByDiscordID("guilds", guildDiscordID, &guild)
+	guild, err := h.resolveOrAutoCreateGuild(guildDiscordID)
 	if err != nil {
-		log.Printf("❌ ERROR [GetGuildRolesConfig] resolving Guild %s: %v", guildDiscordID, err)
+		log.Printf("❌ ERROR [GetGuildRolesConfig] resolving/auto-creating Guild %s: %v", guildDiscordID, err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to resolve Guild: " + err.Error(),
+			"error": "Failed to resolve/auto-create Guild: " + err.Error(),
 		})
 	}
-	if !found {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": "Guild not found in local database mapping",
-		})
-	}
-
+	
 	// 2. Fetch all mapped roles for that Guild from PocketBase
 	roles, err := h.repo.FindRolesByGuild(guild.ID)
 	if err != nil {
@@ -222,5 +259,177 @@ func (h *ConfigHandler) HandleUpdateSquadChannel(c *fiber.Ctx) error {
 	log.Printf("✅ [ConfigHandler] Squad channel for Role ID %s successfully updated", roleID)
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "Squad channel updated successfully",
+	})
+}
+
+// HandleGetGuildStudents fetches all students associated with a Discord guild ID from the local database.
+func (h *ConfigHandler) HandleGetGuildStudents(c *fiber.Ctx) error {
+	guildDiscordID := c.Params("guildId")
+	if guildDiscordID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "The guildId parameter is required in the path route",
+		})
+	}
+
+	// 1. Resolve Discord Guild ID to PocketBase Guild Record
+	guild, err := h.resolveOrAutoCreateGuild(guildDiscordID)
+	if err != nil {
+		log.Printf("❌ ERROR [GetGuildStudents] resolving/auto-creating Guild %s: %v", guildDiscordID, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to resolve/auto-create Guild: " + err.Error(),
+		})
+	}
+
+	// 2. Fetch all mapped students for that Guild from PocketBase
+	students, err := h.repo.FindStudentsByGuild(guild.ID)
+	if err != nil {
+		log.Printf("❌ ERROR [GetGuildStudents] fetching students for Guild %s: %v", guild.ID, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to fetch students from database: " + err.Error(),
+		})
+	}
+
+	return c.JSON(students)
+}
+
+// GuildMappingResponse represents the taxonomy structure for a Guild.
+type GuildMappingResponse struct {
+	SquadRoles  []string `json:"squad_roles"`
+	MentorRoles []string `json:"mentor_roles"`
+	SkillRoles  []string `json:"skill_roles"`
+}
+
+// HandleGetGuildMapping retrieves the current taxonomy mapping for a Guild.
+func (h *ConfigHandler) HandleGetGuildMapping(c *fiber.Ctx) error {
+	guildDiscordID := c.Params("guildId")
+	if guildDiscordID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "The guildId parameter is required in the path route",
+		})
+	}
+
+	guild, err := h.resolveOrAutoCreateGuild(guildDiscordID)
+	if err != nil {
+		log.Printf("❌ ERROR [GetGuildMapping] resolving Guild %s: %v", guildDiscordID, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to resolve Guild: " + err.Error(),
+		})
+	}
+
+	mapping := GuildMappingResponse{
+		SquadRoles:  guild.SquadRoles,
+		MentorRoles: guild.MentorRoles,
+		SkillRoles:  guild.SkillRoles,
+	}
+
+	// Ensure arrays are not nil
+	if mapping.SquadRoles == nil {
+		mapping.SquadRoles = []string{}
+	}
+	if mapping.MentorRoles == nil {
+		mapping.MentorRoles = []string{}
+	}
+	if mapping.SkillRoles == nil {
+		mapping.SkillRoles = []string{}
+	}
+
+	return c.JSON(mapping)
+}
+
+// HandleUpdateGuildMapping updates the taxonomy mapping for a Guild in PocketBase.
+func (h *ConfigHandler) HandleUpdateGuildMapping(c *fiber.Ctx) error {
+	guildDiscordID := c.Params("guildId")
+	if guildDiscordID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "The guildId path parameter is required in the route",
+		})
+	}
+
+	var req GuildMappingResponse
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body format",
+		})
+	}
+
+	guild, err := h.resolveOrAutoCreateGuild(guildDiscordID)
+	if err != nil {
+		log.Printf("❌ ERROR [UpdateGuildMapping] resolving Guild %s: %v", guildDiscordID, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to resolve Guild: " + err.Error(),
+		})
+	}
+
+	// Perform partial update of taxonomy fields
+	updateData := map[string]interface{}{
+		"squad_roles":  req.SquadRoles,
+		"mentor_roles": req.MentorRoles,
+		"skill_roles":  req.SkillRoles,
+	}
+
+	var updated pocketbase.GuildRecord
+	if err := h.repo.UpdateRecord("guilds", guild.ID, &updateData, &updated); err != nil {
+		log.Printf("❌ ERROR [UpdateGuildMapping] updating Guild ID %s: %v", guild.ID, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to update guild mapping in PocketBase: " + err.Error(),
+		})
+	}
+
+	// Sync roles to PocketBase "roles" collection with the correct boolean flags
+	dRoles, dErr := h.discordService.Session.GuildRoles(guildDiscordID)
+	if dErr != nil {
+		log.Printf("⚠️ Warning: Failed to fetch Discord Roles for %s: %v", guildDiscordID, dErr)
+	}
+	roleNameMap := make(map[string]string)
+	for _, r := range dRoles {
+		roleNameMap[r.ID] = r.Name
+	}
+
+	syncRoleConfig := func(discordRoleID string, isMonitored bool, isStaff bool) {
+		var pbRole pocketbase.RoleRecord
+		found, _ := h.repo.FindFirstByDiscordID("roles", discordRoleID, &pbRole)
+		
+		name := roleNameMap[discordRoleID]
+		if name == "" {
+			name = "Sincronizado via Taxonomia"
+		}
+
+		if found {
+			updateData := map[string]interface{}{
+				"is_monitored": isMonitored,
+				"is_staff":     isStaff,
+				"is_active":    true,
+				"name":         name,
+			}
+			h.repo.UpdateRecord("roles", pbRole.ID, updateData, nil)
+		} else {
+			newRole := pocketbase.RoleRecord{
+				DiscordID:   discordRoleID,
+				Name:        name,
+				GuildID:     guild.ID,
+				IsMonitored: isMonitored,
+				IsStaff:     isStaff,
+				IsActive:    true,
+			}
+			h.repo.CreateRecord("roles", newRole, &pbRole)
+		}
+	}
+
+	for _, rID := range req.SquadRoles {
+		syncRoleConfig(rID, true, false)
+	}
+	for _, rID := range req.MentorRoles {
+		syncRoleConfig(rID, false, true)
+	}
+	for _, rID := range req.SkillRoles {
+		syncRoleConfig(rID, false, false)
+	}
+
+	log.Printf("✅ CONFIG: Updated Guild Mapping and synced %d Roles for %s (%s)", len(req.SquadRoles)+len(req.MentorRoles)+len(req.SkillRoles), updated.Name, updated.DiscordID)
+
+	return c.Status(fiber.StatusOK).JSON(GuildMappingResponse{
+		SquadRoles:  updated.SquadRoles,
+		MentorRoles: updated.MentorRoles,
+		SkillRoles:  updated.SkillRoles,
 	})
 }

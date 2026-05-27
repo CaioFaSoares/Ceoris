@@ -10,10 +10,13 @@ type PBRecord struct {
 // GuildRecord maps the "guilds" collection schema.
 type GuildRecord struct {
 	PBRecord
-	DiscordID             string `json:"discord_id"`
-	Name                  string `json:"name"`
-	Status                string `json:"status"` // select: active, archived
-	AnnouncementChannelID string `json:"announcement_channel_id"`
+	DiscordID             string   `json:"discord_id"`
+	Name                  string   `json:"name"`
+	Status                string   `json:"status"` // select: active, archived
+	AnnouncementChannelID string   `json:"announcement_channel_id"`
+	SquadRoles            []string `json:"squad_roles"`  // NOVO: Taxonomia (JSON)
+	MentorRoles           []string `json:"mentor_roles"` // NOVO: Taxonomia (JSON)
+	SkillRoles            []string `json:"skill_roles"`  // NOVO: Taxonomia (JSON)
 }
 
 // RoleRecord maps the "roles" collection schema.
@@ -27,6 +30,7 @@ type RoleRecord struct {
 	CheckoutCooldown int    `json:"checkout_cooldown"`
 	IsMonitored      bool   `json:"is_monitored"`
 	IsActive         bool   `json:"is_active"`
+	IsStaff          bool   `json:"is_staff"`         // NOVO
 	SquadChannelID   string `json:"squad_channel_id"` // NOVO
 }
 

@@ -3,6 +3,7 @@ import type { DropdownMenuItem } from '@nuxt/ui'
 
 // Importando o estado global (PRD 1.2)
 const { selectedGuildId, setGuildId } = useAppContext()
+const toast = useToast()
 
 defineProps<{
   collapsed?: boolean
@@ -15,7 +16,7 @@ interface Guild {
 }
 
 // 1. Busca dos Dados via API (PRD 1.1)
-const { data: guilds, status } = await useAsyncData<Guild[]>(
+const { data: guilds, status, refresh } = await useAsyncData<Guild[]>(
   'discord-guilds',
   () => useApi('/api/discord/guilds')
 )
@@ -54,7 +55,12 @@ const items = computed<DropdownMenuItem[][]>(() => {
       },
       {
         label: 'Sincronizar Dados',
-        icon: 'i-heroicons-arrow-path'
+        icon: 'i-heroicons-arrow-path',
+        onSelect: async (e: Event) => {
+          e.preventDefault()
+          await refresh()
+          toast.add({ title: 'Servidores sincronizados!', description: 'A lista de servidores foi atualizada do Discord.', color: 'green' })
+        }
       }
     ]
   ]

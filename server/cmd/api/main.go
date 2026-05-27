@@ -70,15 +70,21 @@ func runFiberApp() {
 
 	// 4. Initialize HTTP handlers/controllers
 	pbRepo := pbclient.NewRepository(pbClient)
-	syncUsecase := usecases.NewSyncUsecase(discordService, pbRepo)
+
+	// Auto-Migrate Schemas
+	if err := pbRepo.MigrateCollections(); err != nil {
+		log.Fatalf("❌ ERROR: Failed to auto-migrate PocketBase collections: %v", err)
+	}
+	
+	provisionUsecase := usecases.NewProvisionUsecase(discordService, pbRepo)
+	provisionHandler := handlers.NewProvisionHandler(provisionUsecase)
+
+	syncUsecase := usecases.NewSyncUsecase(discordService, pbRepo, provisionUsecase)
 	syncHandler := handlers.NewSyncHandler(syncUsecase)
 
 	discordHandler := handlers.NewDiscordHandler(discordService)
 
-	provisionUsecase := usecases.NewProvisionUsecase(discordService, pbRepo)
-	provisionHandler := handlers.NewProvisionHandler(provisionUsecase)
-
-	configHandler := handlers.NewConfigHandler(pbRepo)
+	configHandler := handlers.NewConfigHandler(pbRepo, discordService)
 	reportUsecase := usecases.NewReportUsecase(pbRepo)
 	reportHandler := handlers.NewReportHandler(pbRepo, reportUsecase)
 
@@ -163,6 +169,9 @@ func runFiberApp() {
 
 	// Configuration Routes (Schedules & Shifts)
 	api.Get("/config/guilds/:guildId/roles", configHandler.HandleGetGuildRolesConfig)
+	api.Get("/config/guilds/:guildId/students", configHandler.HandleGetGuildStudents)
+	api.Get("/config/guilds/:guildId/mapping", configHandler.HandleGetGuildMapping)
+	api.Patch("/config/guilds/:guildId/mapping", configHandler.HandleUpdateGuildMapping)
 	api.Patch("/config/roles/:roleId", configHandler.HandleUpdateRoleConfig)
 	api.Patch("/config/roles/:roleId/channel", configHandler.HandleUpdateSquadChannel)
 	api.Patch("/config/guilds/:guildId", configHandler.HandleUpdateGuildConfig)
