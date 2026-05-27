@@ -10,7 +10,8 @@ services:
     ports:
       - "12001:3000"
     environment:
-      - NUXT_PUBLIC_API_BASE=http://server:12000 # Comunicação via rede interna
+      - NUXT_API_BASE=http://server:12000 # Comunicação interna do Nitro via SSR
+      - NUXT_PUBLIC_API_BASE=http://localhost:12000 # Comunicação externa via Browser
       - CHOKIDAR_USEPOLLING=true # Hot reload
     volumes:
       - ./app:/app
