@@ -20,7 +20,7 @@ services:
     networks:
       - ceoris_net
     depends_on:
-      - server
+      - ceoris-server
 
   # 2. Server (Go Fiber)
   ceoris-server:
@@ -40,7 +40,7 @@ services:
     networks:
       - ceoris_net
     depends_on:
-      - database
+      - ceoris-database
     env_file:
       - .env
 
