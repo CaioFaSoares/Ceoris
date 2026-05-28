@@ -72,7 +72,7 @@ func (u *UIUsecase) GetSquadDashboardData(roleID string) (*SquadDashboardRespons
 	// The PRD mentions text channels. Let's use GetGuildCategories which we already have,
 	// or create a new method to just get text channels.
 	// Since we don't have GetTextChannels natively exposed on discordService easily without adding to it,
-	// I'll fetch categories which usually contain channels if the struct supports it, 
+	// I'll fetch categories which usually contain channels if the struct supports it,
 	// or we can fetch channels directly via Discord API.
 	// We'll add GetTextChannels to DiscordService to keep it clean.
 	textChannels, err := u.discordService.GetGuildTextChannels(guild.DiscordID)
@@ -96,7 +96,7 @@ func (u *UIUsecase) GetSquadDashboardData(roleID string) (*SquadDashboardRespons
 		if hasChannel {
 			provisionedCount++
 		}
-		
+
 		nickname := s.Nickname
 		if nickname == "" {
 			nickname = s.Username
@@ -118,9 +118,9 @@ func (u *UIUsecase) GetSquadDashboardData(roleID string) (*SquadDashboardRespons
 	if totalStudents > 0 {
 		startDate := time.Now().AddDate(0, 0, -30).Format("2006-01-02")
 		endDate := time.Now().Format("2006-01-02")
-		
+
 		attendances, _ := u.repo.GetAttendancesByDateRange(role.GuildID, role.ID, startDate, endDate)
-		
+
 		if len(attendances) > 0 {
 			completedCount := 0
 			for _, att := range attendances {
@@ -136,8 +136,8 @@ func (u *UIUsecase) GetSquadDashboardData(roleID string) (*SquadDashboardRespons
 	return &SquadDashboardResponse{
 		SquadInfo: SquadDashboardInfoDTO{
 			ID:             role.ID,
-			Name           : role.Name,
-			SquadChannelID : role.SquadChannelID,
+			Name:           role.Name,
+			SquadChannelID: role.SquadChannelID,
 		},
 		Metrics: SquadDashboardMetricsDTO{
 			TotalStudents:            totalStudents,

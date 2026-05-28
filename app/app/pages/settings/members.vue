@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useIntervalFn } from '@vueuse/core'
+
 const { selectedGuildId } = useAppContext()
 const toast = useToast()
 
@@ -18,7 +20,7 @@ const isSyncing = ref(false)
 // 1. Fetch dos Alunos (Lazy para não bloquear renderização)
 const { data: students, status, refresh } = useLazyAsyncData<any[]>(
   'guild-students',
-  () => selectedGuildId.value ? useApi(`/api/config/guilds/${selectedGuildId.value}/students`) : Promise.resolve([]), 
+  () => selectedGuildId.value ? useApi(`/api/guilds/${selectedGuildId.value}/students`) : Promise.resolve([]), 
   { 
     watch: [selectedGuildId],
     default: () => [] 
@@ -50,14 +52,40 @@ const paginatedRows = computed(() => {
   return filteredRows.value.slice(start, end)
 })
 
-// 3. Mutação: Disparar Sincronização Completa
+// 3. Funções de Background (Fire-and-Forget)
+async function handleProvisionChannels() {
+  if (!selectedGuildId.value) return
+  try {
+    await useApi(`/api/guilds/${selectedGuildId.value}/provision`, { method: 'POST' })
+    toast.add({
+      title: 'Ação Iniciada',
+      description: 'Provisionamento em background iniciado!',
+      color: 'blue'
+    })
+    triggerPolling()
+  } catch (error) {}
+}
+
+async function handleHealChannels() {
+  if (!selectedGuildId.value) return
+  try {
+    await useApi(`/api/guilds/${selectedGuildId.value}/heal`, { method: 'POST' })
+    toast.add({
+      title: 'Ação Iniciada',
+      description: 'Processo de Auto-Healing iniciado em background.',
+      color: 'blue'
+    })
+    triggerPolling()
+  } catch (error) {}
+}
+
 async function handleSyncDiscord() {
   if (!selectedGuildId.value) return
 
   isSyncing.value = true
   try {
     // Aciona a Sincronização Avançada no Go Daemon (Processa alunos e gerentes)
-    await useApi(`/api/sync/guilds/${selectedGuildId.value}/advanced`, {
+    await useApi(`/api/guilds/${selectedGuildId.value}/sync`, {
       method: 'POST',
       body: {
         students: { active: true },
@@ -66,18 +94,75 @@ async function handleSyncDiscord() {
     })
     
     toast.add({
-      title: 'Sincronização Concluída',
-      description: 'A base de alunos e turmas foi mapeada com sucesso.',
-      color: 'green'
+      title: 'Sincronização em Background',
+      description: 'A base de alunos e turmas começou a ser sincronizada. Isso ocorrerá silenciosamente.',
+      color: 'blue'
     })
-    
-    // Recarrega a tabela automaticamente para mostrar os novos alunos
-    await refresh()
+    triggerPolling()
   } catch (error) {
     // Erros já são tratados globalmente
   } finally {
     isSyncing.value = false
   }
+}
+
+// 4. Dropdown Actions e Motor de Polling
+const batchActions = [
+  [{
+    label: 'Provisionar Canais Pendentes',
+    icon: 'i-heroicons-server-stack',
+    click: handleProvisionChannels
+  }, {
+    label: 'Corrigir Permissões (Heal)',
+    icon: 'i-heroicons-wrench-screwdriver',
+    click: handleHealChannels
+  }]
+]
+
+const pollingCycles = ref(0)
+const maxPollingCycles = 12
+
+const { pause: stopPolling, resume: startPolling, isActive: isPollingActive } = useIntervalFn(async () => {
+  pollingCycles.value++
+  await refresh()
+  
+  // Regra 1: Parada Precoce por Sucesso
+  if (students.value && students.value.every((s: any) => s.has_1on1 === true)) {
+    stopPolling()
+    pollingCycles.value = 0
+    toast.add({
+      title: 'Todos os canais prontos!',
+      description: 'As ações em lote concluíram com sucesso.',
+      color: 'green'
+    })
+    return
+  }
+
+  // Regra 2: A Guilhotina de Tempo
+  if (pollingCycles.value >= maxPollingCycles) {
+    stopPolling()
+    pollingCycles.value = 0
+    
+    const hasPendings = students.value && students.value.some((s: any) => s.has_1on1 === false)
+    if (hasPendings) {
+      toast.add({
+        title: 'Operação Finalizada',
+        description: 'A operação finalizou, mas alguns alunos continuam pendentes. Verifique os logs se o erro persistir.',
+        color: 'yellow'
+      })
+    } else {
+      toast.add({
+        title: 'Operação Finalizada',
+        description: 'As tarefas de background parecem ter concluído.',
+        color: 'green'
+      })
+    }
+  }
+}, 5000, { immediate: false })
+
+function triggerPolling() {
+  pollingCycles.value = 0
+  startPolling()
 }
 </script>
 
@@ -86,14 +171,23 @@ async function handleSyncDiscord() {
     <template #header>
       <UDashboardNavbar title="Base de Alunos (Membros)">
         <template #right>
-          <UButton
-            label="Sincronizar Discord"
-            icon="i-heroicons-arrow-path"
-            color="primary"
-            :loading="isSyncing"
-            :disabled="!selectedGuildId || isSyncing"
-            @click="handleSyncDiscord"
-          />
+          <div class="flex gap-2 items-center">
+            <span v-if="isPollingActive" class="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 font-medium mr-2 bg-blue-50 dark:bg-blue-900/30 px-3 py-1.5 rounded-full border border-blue-200 dark:border-blue-800">
+              <UIcon name="i-heroicons-arrow-path" class="animate-spin w-4 h-4" />
+              Atualizando ao vivo...
+            </span>
+            <UDropdown :items="batchActions" :disabled="!selectedGuildId || isSyncing">
+              <UButton color="white" trailing-icon="i-heroicons-chevron-down-20-solid" label="Ações em Lote" />
+            </UDropdown>
+            <UButton
+              label="Sincronizar Discord"
+              icon="i-heroicons-arrow-path"
+              color="primary"
+              :loading="isSyncing"
+              :disabled="!selectedGuildId || isSyncing"
+              @click="handleSyncDiscord"
+            />
+          </div>
         </template>
       </UDashboardNavbar>
     </template>
@@ -147,15 +241,15 @@ async function handleSyncDiscord() {
                   <span class="relative flex h-2.5 w-2.5">
                     <span 
                       class="absolute inline-flex h-full w-full rounded-full opacity-75"
-                      :class="row.original.channel_id ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'"
+                      :class="row.original.has_1on1 ? 'bg-emerald-400 animate-ping' : 'bg-rose-400'"
                     ></span>
                     <span 
                       class="relative inline-flex rounded-full h-2.5 w-2.5"
-                      :class="row.original.channel_id ? 'bg-emerald-500' : 'bg-amber-500'"
+                      :class="row.original.has_1on1 ? 'bg-emerald-500' : 'bg-rose-500'"
                     ></span>
                   </span>
-                  <span class="text-sm font-medium" :class="row.original.channel_id ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'">
-                    {{ row.original.channel_id ? 'Pronto' : 'Pendente' }}
+                  <span class="text-sm font-medium" :class="row.original.has_1on1 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'">
+                    {{ row.original.has_1on1 ? 'Pronto' : 'Pendente' }}
                   </span>
                 </div>
               </template>

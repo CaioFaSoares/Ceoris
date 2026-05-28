@@ -6,6 +6,8 @@ import (
 	"log"
 
 	"github.com/gofiber/fiber/v2"
+
+	"chantry/server/internal/utils"
 )
 
 type SystemHandler struct {
@@ -67,5 +69,5 @@ func (h *SystemHandler) HandleGetHealth(c *fiber.Ctx) error {
 		},
 	}
 
-	return c.Status(fiber.StatusOK).JSON(response)
+	return utils.JSONSuccess(c, fiber.StatusOK, response)
 }

@@ -35,7 +35,7 @@ func NewProvisionUsecase(ds *discord.DiscordService, pbr *pocketbase.Repository)
 
 // BatchCreatePrivateChannels orchestrates creating private Discord channels in batches,
 // resolving Discord snowflakes to internal PocketBase IDs, and handling rate limits.
-func (u *ProvisionUsecase) BatchCreatePrivateChannels(guildDiscordID, categoryDiscordID, roleDiscordID string) (ProvisionMetrics, error) {
+func (u *ProvisionUsecase) BatchCreatePrivateChannels(guildDiscordID string) (ProvisionMetrics, error) {
 	metrics := ProvisionMetrics{}
 
 	// 1. Resolve IDs (Discord Snowflake -> 15-char PocketBase internal record ID)
@@ -48,24 +48,15 @@ func (u *ProvisionUsecase) BatchCreatePrivateChannels(guildDiscordID, categoryDi
 		return metrics, fmt.Errorf("guild %s not found in database, please sync first", guildDiscordID)
 	}
 
-	var roleRecord pocketbase.RoleRecord
-	found, err = u.PBRepository.FindFirstByDiscordID("roles", roleDiscordID, &roleRecord)
-	if err != nil {
-		return metrics, fmt.Errorf("failed to query role in database: %w", err)
-	}
-	if !found {
-		return metrics, fmt.Errorf("role %s not found in database, please sync first", roleDiscordID)
-	}
-
 	// 2. Query pending students
-	pendingStudents, err := u.PBRepository.FindStudentsPendingProvision(guildRecord.ID, roleRecord.ID)
+	pendingStudents, err := u.PBRepository.FindAllStudentsPendingProvision(guildRecord.ID)
 	if err != nil {
 		return metrics, fmt.Errorf("failed to fetch pending students: %w", err)
 	}
 
 	metrics.TotalStudents = len(pendingStudents)
 	if len(pendingStudents) == 0 {
-		log.Printf("[PROVISION] All students for guild %s / role %s already have provisioned channels.", guildDiscordID, roleDiscordID)
+		log.Printf("[PROVISION] All students for guild %s already have provisioned channels.", guildDiscordID)
 		return metrics, nil
 	}
 
@@ -92,7 +83,14 @@ func (u *ProvisionUsecase) BatchCreatePrivateChannels(guildDiscordID, categoryDi
 			continue
 		}
 
-		log.Printf("⏳ [PROVISION] Creating private channel for student %s (%s)...", student.Nickname, student.DiscordID)
+		categoryDiscordID := student.Expand.Role.SquadChannelID
+		if categoryDiscordID == "" {
+			log.Printf("⚠️ Skipping student %s: Their role (%s) has no SquadChannelID assigned.", student.Nickname, student.Expand.Role.Name)
+			metrics.Errors++
+			continue
+		}
+
+		log.Printf("⏳ [PROVISION] Creating private channel for student %s (%s) in category %s...", student.Nickname, student.DiscordID, categoryDiscordID)
 
 		// Create private channel using the 1-on-1 Factory
 		newChannel, err := u.DiscordService.CreatePrivateChannel(
@@ -142,9 +140,9 @@ type HealMetrics struct {
 	StudentsStillPending int `json:"students_still_pending"`
 }
 
-// HealChannelsByCategory scans all text channels under a Discord category, matches them against
+// HealChannelsByGuild scans all text channels under all active squad categories, matches them against
 // students' usernames in PocketBase, and updates the missing channel_id fields.
-func (u *ProvisionUsecase) HealChannelsByCategory(guildDiscordID string, categoryDiscordID string) (HealMetrics, error) {
+func (u *ProvisionUsecase) HealChannelsByGuild(guildDiscordID string) (HealMetrics, error) {
 	metrics := HealMetrics{}
 
 	// 1. Resolve PocketBase Guild ID
@@ -157,21 +155,34 @@ func (u *ProvisionUsecase) HealChannelsByCategory(guildDiscordID string, categor
 		return metrics, fmt.Errorf("guild %s not found in database, please sync first", guildDiscordID)
 	}
 
+	// Fetch Roles to get active Categories
+	roles, err := u.PBRepository.FindRolesByGuild(guildRecord.ID)
+	if err != nil {
+		return metrics, fmt.Errorf("failed to fetch roles for guild %s: %w", guildRecord.ID, err)
+	}
+
+	validCategoryIDs := make(map[string]bool)
+	for _, r := range roles {
+		if r.SquadChannelID != "" && r.IsActive {
+			validCategoryIDs[r.SquadChannelID] = true
+		}
+	}
+
 	// 2. Fetch all channels in the Guild from Discord API
 	discordChannels, err := u.DiscordService.Session.GuildChannels(guildDiscordID)
 	if err != nil {
 		return metrics, fmt.Errorf("failed to fetch channels from Discord API: %w", err)
 	}
 
-	// 3. Filter channels physically belonging to the target Category and that are text channels
+	// 3. Filter channels physically belonging to the target Categories and that are text channels
 	var categoryChannels []*discordgo.Channel
 	for _, ch := range discordChannels {
-		if ch.ParentID == categoryDiscordID && ch.Type == discordgo.ChannelTypeGuildText {
+		if validCategoryIDs[ch.ParentID] && ch.Type == discordgo.ChannelTypeGuildText {
 			categoryChannels = append(categoryChannels, ch)
 		}
 	}
 	metrics.ChannelsScanned = len(categoryChannels)
-	log.Printf("🛠️ [HEAL] Found %d text channels under Category %s in Discord", metrics.ChannelsScanned, categoryDiscordID)
+	log.Printf("🛠️ [HEAL] Found %d text channels under %d active categories in Discord", metrics.ChannelsScanned, len(validCategoryIDs))
 
 	// 4. Fetch all active/existing students for this guild from PocketBase
 	students, err := u.PBRepository.FindStudentsByGuild(guildRecord.ID)
@@ -231,7 +242,7 @@ func (u *ProvisionUsecase) HealChannelsByCategory(guildDiscordID string, categor
 		// If student has no channel_id, restore/heal it!
 		if student.ChannelID == "" {
 			log.Printf("🔗 [HEAL] Healing: Mapping Discord channel %s (%s) to student %s (%s)", ch.Name, ch.ID, student.Nickname, student.ID)
-			
+
 			updateData := map[string]interface{}{
 				"channel_id": ch.ID,
 			}
@@ -334,4 +345,3 @@ func (u *ProvisionUsecase) GetProvisionPageData(guildDiscordID string) (Provisio
 
 	return data, nil
 }
-

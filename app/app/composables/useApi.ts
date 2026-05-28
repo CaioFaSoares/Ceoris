@@ -17,7 +17,7 @@ export const useApi = async <T>(
   const baseURL = import.meta.server ? config.apiBase : config.public.apiBase
 
   try {
-    const response = await $fetch<T>(request, {
+    const response = await $fetch<{ data?: T, error?: string } | T>(request, {
       baseURL: baseURL as string,
       ...opts,
       
@@ -29,14 +29,19 @@ export const useApi = async <T>(
             id: `api_error_${response.status}`,
             title: 'Erro de Comunicação',
             description: errorMessage,
-            color: 'error', // using 'error' since standard is error or neutral in this ui template
+            color: 'error',
             icon: 'i-lucide-alert-circle'
           })
         }
       }
     })
 
-    return response
+    // O DESEMPACOTADOR (The Unwrapper)
+    if (response && typeof response === 'object' && 'data' in response) {
+      return response.data as T
+    }
+
+    return response as T
   } catch (error) {
     throw error
   }

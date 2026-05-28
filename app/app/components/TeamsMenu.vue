@@ -18,7 +18,7 @@ interface Guild {
 // 1. Busca dos Dados via API (PRD 1.1)
 const { data: guilds, status, refresh } = await useAsyncData<Guild[]>(
   'discord-guilds',
-  () => useApi('/api/discord/guilds')
+  () => useApi('/api/guilds')
 )
 
 // 2. Mágica de Inicialização Automática

@@ -381,5 +381,3 @@ func (s *DiscordService) GetGuildTextChannels(guildID string) ([]DiscordChannel,
 
 	return textChannels, nil
 }
-
-

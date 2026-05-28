@@ -231,6 +231,37 @@ func (r *Repository) FindStudentsPendingProvision(guildID string, roleID string)
 	return students, nil
 }
 
+// FindAllStudentsPendingProvision searches for all students in a specific guild who do not have a Discord channel provisioned yet.
+// It expands the 'role_id' relation to expose the role's 'squad_channel_id' (Discord Category ID).
+func (r *Repository) FindAllStudentsPendingProvision(guildID string) ([]StudentRecord, error) {
+	filter := fmt.Sprintf("guild_id='%s' && channel_id='' && status='active'", guildID)
+	expand := "role_id"
+	endpoint := fmt.Sprintf("api/collections/students/records?filter=%s&expand=%s&limit=500", url.QueryEscape(filter), url.QueryEscape(expand))
+
+	resp, err := r.client.SendRequest("GET", endpoint, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query pocketbase for all pending students: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("pocketbase query failed with status %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var listResp ListResponse
+	if err := json.NewDecoder(resp.Body).Decode(&listResp); err != nil {
+		return nil, fmt.Errorf("failed to decode list response: %w", err)
+	}
+
+	var students []StudentRecord
+	if err := json.Unmarshal(listResp.Items, &students); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal students array: %w", err)
+	}
+
+	return students, nil
+}
+
 // FindAttendanceByStudentAndDate searches for an attendance record for a specific student and date.
 // The dateStr should be in "YYYY-MM-DD" format.
 // If found, it populates the dest pointer and returns true, nil.
@@ -369,7 +400,7 @@ func (r *Repository) FindActiveStudentsByRole(guildID string, roleID string) ([]
 // FindStudentsByGuild fetches all student records in PocketBase associated with a specific Guild ID.
 func (r *Repository) FindStudentsByGuild(guildID string) ([]StudentRecord, error) {
 	filter := fmt.Sprintf("guild_id='%s'", guildID)
-	endpoint := fmt.Sprintf("api/collections/students/records?filter=%s&limit=500", url.QueryEscape(filter))
+	endpoint := fmt.Sprintf("api/collections/students/records?filter=%s&expand=role_id&limit=500", url.QueryEscape(filter))
 
 	resp, err := r.client.SendRequest("GET", endpoint, nil)
 	if err != nil {
@@ -559,14 +590,13 @@ func (r *Repository) FindScheduledBroadcastsBefore(cutoff string) ([]BroadcastRe
 	return broadcasts, nil
 }
 
-
 // GetAttendancesByDateRange queries the PocketBase collections for all attendances in a specific guild,
 // optionally filtered by role, within a specified date range. It expands the 'student_id.role_id' relation
 // to resolve student details and their assigned role/squad name for BI reports.
 func (r *Repository) GetAttendancesByDateRange(guildID, roleID, startDate, endDate string) ([]AttendanceRecord, error) {
 	// Base filter by guild and date range
 	filter := fmt.Sprintf("student_id.guild_id='%s' && date>='%s 00:00:00' && date<='%s 23:59:59'", guildID, startDate, endDate)
-	
+
 	// Optional role filter
 	if roleID != "" {
 		filter += fmt.Sprintf(" && student_id.role_id='%s'", roleID)

@@ -7,6 +7,8 @@ import (
 	"chantry/server/internal/usecases"
 
 	"github.com/gofiber/fiber/v2"
+
+	"chantry/server/internal/utils"
 )
 
 type TestHandler struct {
@@ -31,22 +33,18 @@ type TriggerTestClockInRequest struct {
 func (h *TestHandler) HandleTestAttendanceTrigger(c *fiber.Ctx) error {
 	var req TriggerTestClockInRequest
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid or malformed JSON request body",
-		})
+		return utils.JSONError(c, fiber.StatusBadRequest, "Invalid or malformed JSON request body")
 	}
 
 	if req.GuildID == "" || req.ChannelID == "" || req.TesterDiscordID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		return utils.JSONSuccess(c, fiber.StatusBadRequest, fiber.Map{
 			"error": "guild_id, channel_id, and tester_discord_id are all required",
 		})
 	}
 
 	if err := h.testUsecase.TriggerTestClockIn(req.GuildID, req.ChannelID, req.TesterDiscordID); err != nil {
 		log.Printf("❌ ERROR [TestAttendanceTrigger]: %v", err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to trigger clock-in test: " + err.Error(),
-		})
+		return utils.JSONError(c, fiber.StatusInternalServerError, "Failed to trigger clock-in test: "+err.Error())
 	}
 
 	return c.JSON(fiber.Map{
@@ -56,11 +54,9 @@ func (h *TestHandler) HandleTestAttendanceTrigger(c *fiber.Ctx) error {
 
 // HandleGetManagers returns the list of managers associated with a guild.
 func (h *TestHandler) HandleGetManagers(c *fiber.Ctx) error {
-	guildDiscordID := c.Params("guildId")
+	guildDiscordID := c.Params("id")
 	if guildDiscordID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "The guildId parameter is required in the path route",
-		})
+		return utils.JSONError(c, fiber.StatusBadRequest, "The guildId parameter is required in the path route")
 	}
 
 	// 1. Resolve Discord Guild ID to PocketBase Guild Record
@@ -68,23 +64,17 @@ func (h *TestHandler) HandleGetManagers(c *fiber.Ctx) error {
 	found, err := h.pbRepo.FindFirstByDiscordID("guilds", guildDiscordID, &guild)
 	if err != nil {
 		log.Printf("❌ ERROR [GetManagers] resolving Guild %s: %v", guildDiscordID, err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to resolve Guild: " + err.Error(),
-		})
+		return utils.JSONError(c, fiber.StatusInternalServerError, "Failed to resolve Guild: "+err.Error())
 	}
 	if !found {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": "Guild not found in local database mapping",
-		})
+		return utils.JSONError(c, fiber.StatusNotFound, "Guild not found in local database mapping")
 	}
 
 	// 2. Fetch managers associated with this guild
 	managers, err := h.pbRepo.FindManagersByGuild(guild.ID)
 	if err != nil {
 		log.Printf("❌ ERROR [GetManagers] fetching managers for Guild %s: %v", guild.ID, err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to fetch managers: " + err.Error(),
-		})
+		return utils.JSONError(c, fiber.StatusInternalServerError, "Failed to fetch managers: "+err.Error())
 	}
 
 	return c.JSON(managers)

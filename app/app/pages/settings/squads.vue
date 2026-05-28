@@ -17,7 +17,7 @@ const columns = [
 // Busca das Regras já Salvas (Puxa do Go Daemon / PocketBase)
 const { data: allRoles, status, refresh } = useLazyAsyncData<any[]>(
   'configured-roles',
-  () => selectedGuildId.value ? useApi(`/api/config/guilds/${selectedGuildId.value}/roles`) : Promise.resolve([]),
+  () => selectedGuildId.value ? useApi(`/api/guilds/${selectedGuildId.value}/squads`) : Promise.resolve([]),
   { watch: [selectedGuildId], default: () => [] }
 )
 
@@ -40,7 +40,7 @@ const isDeleting = ref<string | null>(null)
 const removeRoleConfig = async (role: any) => {
   isDeleting.value = role.id
   try {
-    await useApi(`/api/config/roles/${role.id}`, {
+    await useApi(`/api/guilds/${selectedGuildId.value}/squads/${role.id}`, {
       method: 'PATCH',
       body: {
         is_monitored: false,

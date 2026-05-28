@@ -35,7 +35,7 @@ const state = reactive<Schema>({
 // 2. CORREÇÃO DO SUSPENSE (useLazyAsyncData) e Curto-circuito
 const { data: dbRoles, status: loadingRoles } = useLazyAsyncData<any[]>(
   'config-roles-list',
-  () => selectedGuildId.value ? useApi(`/api/config/guilds/${selectedGuildId.value}/roles`) : Promise.resolve([]),
+  () => selectedGuildId.value ? useApi(`/api/guilds/${selectedGuildId.value}/squads`) : Promise.resolve([]),
   { watch: [selectedGuildId], default: () => [] }
 )
 
@@ -55,7 +55,7 @@ async function onSubmit(event: { data: Schema }) {
   isSubmitting.value = true
   try {
     // Usamos o PATCH exato que o backend em Go já possui
-    await useApi(`/api/config/roles/${event.data.role_id}`, {
+    await useApi(`/api/guilds/${selectedGuildId.value}/squads/${event.data.role_id}`, {
       method: 'PATCH',
       body: {
         shift: event.data.shift,

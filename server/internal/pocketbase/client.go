@@ -51,7 +51,7 @@ func (c *Client) Authenticate(email, password string) error {
 		return fmt.Errorf("failed to marshal auth payload: %w", err)
 	}
 
-	url := fmt.Sprintf("%sapi/admins/auth-with-password", c.BaseURL)
+	url := fmt.Sprintf("%sapi/collections/_superusers/auth-with-password", c.BaseURL)
 	resp, err := c.HTTPClient.Post(url, "application/json", bytes.NewBuffer(reqBodyBytes))
 	if err != nil {
 		return fmt.Errorf("auth request failed: %w", err)

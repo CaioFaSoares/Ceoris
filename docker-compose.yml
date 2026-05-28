@@ -44,20 +44,18 @@ services:
     env_file:
       - .env
 
-  # 3. Banco de Dados (PocketBase Customizado)
+  # 3. Banco de Dados Standalone (PocketBase Oficial)
   database:
-    build:
-      context: ./server
-      dockerfile: Dockerfile
+    image: ghcr.io/muchobien/pocketbase:latest
     container_name: ceoris-pocketbase
     ports:
       - "12090:8090" # Portal de Admin acessível em http://localhost:12090/_/
     volumes:
-      - ./db/pb_data:/root/pb_data
-      - ./db/pb_migrations:/root/pb_migrations # Aqui vai a nossa magia
+      - ./db/pb_data:/pb_data
+      - ./db/pb_migrations:/pb_migrations
     networks:
       - ceoris_net
-    command: ["./main", "serve", "--http=0.0.0.0:8090"]
+    command: ["serve", "--http=0.0.0.0:8090"]
     env_file:
       - .env
 

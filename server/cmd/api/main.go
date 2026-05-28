@@ -11,37 +11,16 @@ import (
 	"chantry/server/internal/cron"
 	"chantry/server/internal/discord"
 	"chantry/server/internal/handlers"
-	_ "chantry/server/internal/migrations" // Automatically registers Go migrations
 	pbclient "chantry/server/internal/pocketbase"
 	"chantry/server/internal/usecases"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
-	"github.com/pocketbase/pocketbase"
-	"github.com/pocketbase/pocketbase/plugins/migratecmd"
 )
 
 func main() {
-	// If executed with no arguments (default, e.g. for go-server container),
-	// or specifically requested with "api", run the Fiber API server.
-	if len(os.Args) < 2 || os.Args[1] == "api" {
-		runFiberApp()
-		return
-	}
-
-	// Otherwise, run PocketBase CLI (supporting serve, migrate, etc.)
-	log.Println("⚡ Starting PocketBase Server...")
-	app := pocketbase.New()
-
-	// Register migration commands to auto-run Go migrations
-	migratecmd.MustRegister(app, app.RootCmd, migratecmd.Config{
-		Automigrate: true,
-	})
-
-	if err := app.Start(); err != nil {
-		log.Fatalf("❌ FATAL: PocketBase server error: %v", err)
-	}
+	runFiberApp()
 }
 
 // runFiberApp executes the original Discord Integration daemon (Fiber API)
@@ -71,11 +50,6 @@ func runFiberApp() {
 	// 4. Initialize HTTP handlers/controllers
 	pbRepo := pbclient.NewRepository(pbClient)
 
-	// Auto-Migrate Schemas
-	if err := pbRepo.MigrateCollections(); err != nil {
-		log.Fatalf("❌ ERROR: Failed to auto-migrate PocketBase collections: %v", err)
-	}
-	
 	provisionUsecase := usecases.NewProvisionUsecase(discordService, pbRepo)
 	provisionHandler := handlers.NewProvisionHandler(provisionUsecase)
 
@@ -107,7 +81,6 @@ func runFiberApp() {
 	// Start background async Broadcast worker
 	cron.StartBroadcastWorker(pbRepo, discordService)
 
-
 	// Set global timezone
 	loc, err := time.LoadLocation(cfg.Timezone)
 	if err == nil {
@@ -120,6 +93,15 @@ func runFiberApp() {
 	// Initialize Fiber App with dynamic configuration
 	app := fiber.New(fiber.Config{
 		AppName: "Chantry Go Daemon v0.1.0",
+		ErrorHandler: func(c *fiber.Ctx, err error) error {
+			code := fiber.StatusInternalServerError
+			if e, ok := err.(*fiber.Error); ok {
+				code = e.Code
+			}
+			return c.Status(code).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		},
 	})
 
 	// Logger Middleware for basic connection tracking
@@ -142,50 +124,56 @@ func runFiberApp() {
 		})
 	})
 
-	// Discord Integration Endpoints (REST API Proxy)
+	// Nível 0: Global
 	api := app.Group("/api")
 	api.Get("/system/health", systemHandler.HandleGetHealth)
-	api.Get("/discord/guilds", discordHandler.HandleGetGuilds)
-	api.Get("/discord/guilds/:guildId/roles", discordHandler.HandleGetGuildRoles)
-	api.Get("/discord/guilds/:guildId/members", discordHandler.HandleGetGuildMembers)
-	api.Get("/discord/guilds/:guildId/categories", discordHandler.HandleGetCategories)
-	api.Post("/discord/guilds/:guildId/categories", discordHandler.HandleCreateCategory)
 
-	// Synchronization Route (Logical Upsert)
-	api.Post("/sync/guilds/:guildId/members", syncHandler.HandleSyncMembers)
-	api.Post("/sync/guilds/:guildId/advanced", syncHandler.HandleAdvancedSync)
+	// Nível 1: Descoberta de Domínio
+	api.Get("/guilds", discordHandler.HandleGetGuilds)
 
-	// Provisioning Route (1-on-1 Private Channels Batch)
-	api.Post("/provision/guilds/:guildId/channels", provisionHandler.HandleProvisionChannels)
-	api.Post("/provision/guilds/:guildId/heal", provisionHandler.HandleHealChannels)
-	api.Get("/ui/provision-page/:guildId", provisionHandler.HandleGetProvisionPageData)
+	// Nível 2: Recursos da Guilda (Guild-Centric)
+	guilds := api.Group("/guilds/:id")
+
+	// Taxonomia & Setup
+	guilds.Get("/discord/roles", discordHandler.HandleGetGuildRoles)
+	guilds.Get("/discord/members", discordHandler.HandleGetGuildMembers)
+	guilds.Get("/discord/categories", discordHandler.HandleGetCategories)
+	guilds.Post("/discord/categories", discordHandler.HandleCreateCategory)
+	guilds.Get("/mapping", configHandler.HandleGetGuildMapping)
+	guilds.Patch("/mapping", configHandler.HandleUpdateGuildMapping)
+
+	// Regras de Negócio (Squads)
+	guilds.Get("/squads", configHandler.HandleGetGuildRolesConfig)
+	guilds.Patch("/squads/:roleId", configHandler.HandleUpdateRoleConfig)
+	guilds.Patch("/squads/:roleId/channel", configHandler.HandleUpdateSquadChannel)
+	guilds.Patch("/config", configHandler.HandleUpdateGuildConfig)
+
+	// Vida Acadêmica (Estudantes & Sincronização)
+	guilds.Get("/students", configHandler.HandleGetGuildStudents)
+	guilds.Post("/sync", syncHandler.HandleAdvancedSync)
+	guilds.Post("/sync/members", syncHandler.HandleSyncMembers)
+
+	// Operações em Lote (Assíncronas)
+	guilds.Post("/provision", provisionHandler.HandleProvisionChannels)
+	guilds.Post("/heal", provisionHandler.HandleHealChannels)
+	guilds.Get("/ui/provision-page", provisionHandler.HandleGetProvisionPageData)
 
 	// Targeted Broadcast Route
-	api.Post("/broadcast/guilds/:guildId/send", broadcastHandler.HandleSendBroadcast)
-	api.Get("/ui/broadcast-page/:guildId", broadcastHandler.HandleGetBroadcastPageData)
+	guilds.Post("/broadcast/send", broadcastHandler.HandleSendBroadcast)
+	guilds.Get("/ui/broadcast-page", broadcastHandler.HandleGetBroadcastPageData)
 	api.Post("/broadcasts", broadcastHandler.HandleCreateBroadcast)
 	api.Delete("/broadcasts/:id", broadcastHandler.HandleCancelBroadcast)
-
-
-	// Configuration Routes (Schedules & Shifts)
-	api.Get("/config/guilds/:guildId/roles", configHandler.HandleGetGuildRolesConfig)
-	api.Get("/config/guilds/:guildId/students", configHandler.HandleGetGuildStudents)
-	api.Get("/config/guilds/:guildId/mapping", configHandler.HandleGetGuildMapping)
-	api.Patch("/config/guilds/:guildId/mapping", configHandler.HandleUpdateGuildMapping)
-	api.Patch("/config/roles/:roleId", configHandler.HandleUpdateRoleConfig)
-	api.Patch("/config/roles/:roleId/channel", configHandler.HandleUpdateSquadChannel)
-	api.Patch("/config/guilds/:guildId", configHandler.HandleUpdateGuildConfig)
 
 	// BFF UI Routes
 	api.Get("/ui/squads/:roleId", uiHandler.HandleSquadDashboard)
 
 	// Analytical Report Routes (Daily Attendance Dashboard)
-	api.Get("/reports/guilds/:guildId/attendances", reportHandler.HandleGetAttendances)
-	api.Get("/reports/guilds/:guildId/export", reportHandler.HandleExportReport)
+	guilds.Get("/reports/attendances", reportHandler.HandleGetAttendances)
+	guilds.Get("/reports/export", reportHandler.HandleExportReport)
 
 	// Sandbox Dry Run Test Routes
 	api.Post("/test/attendance/trigger", testHandler.HandleTestAttendanceTrigger)
-	api.Get("/test/guilds/:guildId/managers", testHandler.HandleGetManagers)
+	guilds.Get("/test/managers", testHandler.HandleGetManagers)
 
 	// Start dynamic cron background scheduler
 	cron.StartDynamicCron(pbRepo, discordService, cfg.Timezone)

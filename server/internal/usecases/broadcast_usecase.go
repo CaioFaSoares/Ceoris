@@ -175,7 +175,6 @@ func (u *BroadcastUsecase) GetBroadcastPageData(guildDiscordID string) (Broadcas
 	data.GuildID = guild.ID
 	data.AnnouncementChannelID = guild.AnnouncementChannelID
 
-
 	// Resolve the announcement channel name
 	if guild.AnnouncementChannelID != "" {
 		channel, err := u.discordService.Session.Channel(guild.AnnouncementChannelID)
@@ -242,4 +241,3 @@ func (u *BroadcastUsecase) CancelBroadcast(broadcastID string) error {
 
 	return nil
 }
-

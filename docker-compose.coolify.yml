@@ -43,24 +43,22 @@ services:
     depends_on:
       - database
 
-  # 3. Banco de Dados (PocketBase Customizado)
+  # 3. Banco de Dados Standalone (PocketBase Oficial)
   database:
-    build: 
-      context: ./server
-      dockerfile: Dockerfile
+    image: ghcr.io/muchobien/pocketbase:latest
     container_name: ceoris-pocketbase
     restart: always
     expose:
       - "8090"
     volumes:
-      - ./db/pb_data:/root/pb_data
-      - ./db/pb_migrations:/root/pb_migrations
+      - ./db/pb_data:/pb_data
+      - ./db/pb_migrations:/pb_migrations
     environment:
       - PB_ADMIN_EMAIL=${PB_ADMIN_EMAIL}
       - PB_ADMIN_PASSWORD=${PB_ADMIN_PASSWORD}
     networks:
       - ceoris_net
-    command: ["./main", "serve", "--http=0.0.0.0:8090"]
+    command: ["serve", "--http=0.0.0.0:8090"]
 
 networks:
   ceoris_net:

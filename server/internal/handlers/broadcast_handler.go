@@ -6,6 +6,8 @@ import (
 	"chantry/server/internal/pocketbase"
 	"chantry/server/internal/usecases"
 	"github.com/gofiber/fiber/v2"
+
+	"chantry/server/internal/utils"
 )
 
 type SendBroadcastRequest struct {
@@ -25,31 +27,23 @@ func NewBroadcastHandler(usecase *usecases.BroadcastUsecase) *BroadcastHandler {
 }
 
 func (h *BroadcastHandler) HandleSendBroadcast(c *fiber.Ctx) error {
-	guildID := c.Params("guildId")
+	guildID := c.Params("id")
 	if guildID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "O parâmetro de rota guildId é obrigatório",
-		})
+		return utils.JSONError(c, fiber.StatusBadRequest, "O parâmetro de rota guildId é obrigatório")
 	}
 
 	var req SendBroadcastRequest
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Corpo da requisição JSON inválido ou malformado",
-		})
+		return utils.JSONError(c, fiber.StatusBadRequest, "Corpo da requisição JSON inválido ou malformado")
 	}
 
 	// Validações básicas de negócio
 	if req.Content == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "O conteúdo da mensagem (content) não pode ser vazio",
-		})
+		return utils.JSONError(c, fiber.StatusBadRequest, "O conteúdo da mensagem (content) não pode ser vazio")
 	}
 
 	if req.TargetType != "public" && req.TargetType != "private" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "O tipo de destino (target_type) deve ser 'public' ou 'private'",
-		})
+		return utils.JSONError(c, fiber.StatusBadRequest, "O tipo de destino (target_type) deve ser 'public' ou 'private'")
 	}
 
 	log.Printf("[BROADCAST] Recebida solicitação de disparo para a guilda: %s, tipo: %s", guildID, req.TargetType)
@@ -61,17 +55,13 @@ func (h *BroadcastHandler) HandleSendBroadcast(c *fiber.Ctx) error {
 
 		// Retornar Bad Request caso o erro seja de configuração pendente
 		if err.Error() == "canal de avisos não configurado" {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"error": "Canal de avisos não configurado para este servidor. Configure nas opções de infraestrutura.",
-			})
+			return utils.JSONError(c, fiber.StatusBadRequest, "Canal de avisos não configurado para este servidor. Configure nas opções de infraestrutura.")
 		}
 
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Erro ao processar o disparo: " + err.Error(),
-		})
+		return utils.JSONError(c, fiber.StatusInternalServerError, "Erro ao processar o disparo: "+err.Error())
 	}
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+	return utils.JSONSuccess(c, fiber.StatusOK, fiber.Map{
 		"message": "Broadcast concluído com sucesso",
 		"metrics": metrics,
 	})
@@ -79,86 +69,64 @@ func (h *BroadcastHandler) HandleSendBroadcast(c *fiber.Ctx) error {
 
 // HandleGetBroadcastPageData maps GET /api/ui/broadcast-page/:guildId
 func (h *BroadcastHandler) HandleGetBroadcastPageData(c *fiber.Ctx) error {
-	guildID := c.Params("guildId")
+	guildID := c.Params("id")
 	if guildID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "O parâmetro guildId é obrigatório",
-		})
+		return utils.JSONError(c, fiber.StatusBadRequest, "O parâmetro guildId é obrigatório")
 	}
 
 	data, err := h.broadcastUsecase.GetBroadcastPageData(guildID)
 	if err != nil {
 		log.Printf("❌ ERRO [HandleGetBroadcastPageData] guilda %s: %v", guildID, err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return utils.JSONError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	return c.Status(fiber.StatusOK).JSON(data)
+	return utils.JSONSuccess(c, fiber.StatusOK, data)
 }
 
 // HandleCreateBroadcast maps POST /api/broadcasts
 func (h *BroadcastHandler) HandleCreateBroadcast(c *fiber.Ctx) error {
 	var record pocketbase.BroadcastRecord
 	if err := c.BodyParser(&record); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Corpo da requisição JSON inválido ou malformado",
-		})
+		return utils.JSONError(c, fiber.StatusBadRequest, "Corpo da requisição JSON inválido ou malformado")
 	}
 
 	if record.Content == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "O conteúdo do comunicado não pode ser vazio",
-		})
+		return utils.JSONError(c, fiber.StatusBadRequest, "O conteúdo do comunicado não pode ser vazio")
 	}
 
 	if record.TargetType != "public" && record.TargetType != "private" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "O tipo de destino deve ser 'public' ou 'private'",
-		})
+		return utils.JSONError(c, fiber.StatusBadRequest, "O tipo de destino deve ser 'public' ou 'private'")
 	}
 
 	if record.ScheduleTime == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "A data/hora do disparo (schedule_time) é obrigatória",
-		})
+		return utils.JSONError(c, fiber.StatusBadRequest, "A data/hora do disparo (schedule_time) é obrigatória")
 	}
 
 	if record.GuildID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "O identificador da guilda (guild_id) é obrigatório",
-		})
+		return utils.JSONError(c, fiber.StatusBadRequest, "O identificador da guilda (guild_id) é obrigatório")
 	}
 
 	err := h.broadcastUsecase.CreateBroadcast(&record)
 	if err != nil {
 		log.Printf("❌ ERRO [HandleCreateBroadcast] salvando agendamento: %v", err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return utils.JSONError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(record)
+	return utils.JSONSuccess(c, fiber.StatusCreated, record)
 }
 
 // HandleCancelBroadcast maps DELETE /api/broadcasts/:id
 func (h *BroadcastHandler) HandleCancelBroadcast(c *fiber.Ctx) error {
 	id := c.Params("id")
 	if id == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "O parâmetro id da mensagem é obrigatório na rota",
-		})
+		return utils.JSONError(c, fiber.StatusBadRequest, "O parâmetro id da mensagem é obrigatório na rota")
 	}
 
 	err := h.broadcastUsecase.CancelBroadcast(id)
 	if err != nil {
 		log.Printf("❌ ERRO [HandleCancelBroadcast] cancelando msg %s: %v", id, err)
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return utils.JSONError(c, fiber.StatusBadRequest, err.Error())
 	}
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"message": "Agendamento de comunicado cancelado e excluído com sucesso",
-	})
+	return utils.JSONError(c, fiber.StatusOK, "Agendamento de comunicado cancelado e excluído com sucesso")
 }

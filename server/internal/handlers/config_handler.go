@@ -5,8 +5,11 @@ import (
 	"regexp"
 
 	"chantry/server/internal/discord"
+	"chantry/server/internal/dto"
 	"chantry/server/internal/pocketbase"
 	"github.com/gofiber/fiber/v2"
+
+	"chantry/server/internal/utils"
 )
 
 // ConfigHandler coordinates incoming HTTP API requests for system configurations.
@@ -65,32 +68,31 @@ func (h *ConfigHandler) resolveOrAutoCreateGuild(guildDiscordID string) (*pocket
 
 // HandleGetGuildRolesConfig fetches roles and their configurations associated with a Discord guild ID.
 func (h *ConfigHandler) HandleGetGuildRolesConfig(c *fiber.Ctx) error {
-	guildDiscordID := c.Params("guildId")
+	guildDiscordID := c.Params("id")
 	if guildDiscordID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "The guildId parameter is required in the path route",
-		})
+		return utils.JSONError(c, fiber.StatusBadRequest, "The guildId parameter is required in the path route")
 	}
 
 	// 1. Resolve Discord Guild ID to PocketBase Guild Record
 	guild, err := h.resolveOrAutoCreateGuild(guildDiscordID)
 	if err != nil {
 		log.Printf("❌ ERROR [GetGuildRolesConfig] resolving/auto-creating Guild %s: %v", guildDiscordID, err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to resolve/auto-create Guild: " + err.Error(),
-		})
+		return utils.JSONError(c, fiber.StatusInternalServerError, "Failed to resolve/auto-create Guild: "+err.Error())
 	}
-	
+
 	// 2. Fetch all mapped roles for that Guild from PocketBase
 	roles, err := h.repo.FindRolesByGuild(guild.ID)
 	if err != nil {
 		log.Printf("❌ ERROR [GetGuildRolesConfig] fetching roles for Guild %s: %v", guild.ID, err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to fetch roles from database: " + err.Error(),
-		})
+		return utils.JSONError(c, fiber.StatusInternalServerError, "Failed to fetch roles from database: "+err.Error())
 	}
 
-	return c.JSON(roles)
+	var roleDTOs []dto.RoleConfigResponse
+	for _, r := range roles {
+		roleDTOs = append(roleDTOs, dto.ToRoleConfigResponse(r))
+	}
+
+	return utils.JSONSuccess(c, fiber.StatusOK, roleDTOs)
 }
 
 // UpdateRoleConfigRequest maps the incoming request body for PATCH /api/config/roles/:roleId
@@ -106,21 +108,17 @@ type UpdateRoleConfigRequest struct {
 func (h *ConfigHandler) HandleUpdateRoleConfig(c *fiber.Ctx) error {
 	roleID := c.Params("roleId")
 	if roleID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "The roleId parameter is required in the path route",
-		})
+		return utils.JSONError(c, fiber.StatusBadRequest, "The roleId parameter is required in the path route")
 	}
 
 	var req UpdateRoleConfigRequest
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid request body format",
-		})
+		return utils.JSONError(c, fiber.StatusBadRequest, "Invalid request body format")
 	}
 
 	// 1. Validate Shift Value if provided
 	if req.Shift != "" && req.Shift != "morning" && req.Shift != "afternoon" && req.Shift != "night" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		return utils.JSONSuccess(c, fiber.StatusBadRequest, fiber.Map{
 			"error": "Invalid shift. Must be one of: morning, afternoon, night",
 		})
 	}
@@ -129,7 +127,7 @@ func (h *ConfigHandler) HandleUpdateRoleConfig(c *fiber.Ctx) error {
 	if req.CheckInTime != "" {
 		matched, _ := regexp.MatchString(`^(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$`, req.CheckInTime)
 		if !matched {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			return utils.JSONSuccess(c, fiber.StatusBadRequest, fiber.Map{
 				"error": "Invalid check_in_time format. Must be HH:MM (24-hour), e.g. 08:00 or 14:30",
 			})
 		}
@@ -156,15 +154,13 @@ func (h *ConfigHandler) HandleUpdateRoleConfig(c *fiber.Ctx) error {
 	var updated pocketbase.RoleRecord
 	if err := h.repo.UpdateRecord("roles", roleID, &updateData, &updated); err != nil {
 		log.Printf("❌ ERROR [UpdateRoleConfig] updating Role ID %s: %v", roleID, err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to update role configuration in PocketBase: " + err.Error(),
-		})
+		return utils.JSONError(c, fiber.StatusInternalServerError, "Failed to update role configuration in PocketBase: "+err.Error())
 	}
 
 	log.Printf("✅ CONFIG: Updated Role %s (%s): Shift=%s, CheckInTime=%s, Cooldown=%d, Monitored=%v, Active=%v",
 		updated.Name, updated.ID, updated.Shift, updated.CheckInTime, updated.CheckoutCooldown, updated.IsMonitored, updated.IsActive)
 
-	return c.Status(fiber.StatusOK).JSON(updated)
+	return utils.JSONSuccess(c, fiber.StatusOK, dto.ToRoleConfigResponse(updated))
 }
 
 // UpdateGuildConfigRequest maps the incoming request body for PATCH /api/config/guilds/:guildId
@@ -174,18 +170,14 @@ type UpdateGuildConfigRequest struct {
 
 // HandleUpdateGuildConfig updates the guild configuration in PocketBase (such as the announcement channel).
 func (h *ConfigHandler) HandleUpdateGuildConfig(c *fiber.Ctx) error {
-	guildDiscordID := c.Params("guildId")
+	guildDiscordID := c.Params("id")
 	if guildDiscordID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "The guildId path parameter is required in the route",
-		})
+		return utils.JSONError(c, fiber.StatusBadRequest, "The guildId path parameter is required in the route")
 	}
 
 	var req UpdateGuildConfigRequest
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid request body format",
-		})
+		return utils.JSONError(c, fiber.StatusBadRequest, "Invalid request body format")
 	}
 
 	// 1. Resolve Discord Guild ID to PocketBase Guild Record
@@ -193,14 +185,10 @@ func (h *ConfigHandler) HandleUpdateGuildConfig(c *fiber.Ctx) error {
 	found, err := h.repo.FindFirstByDiscordID("guilds", guildDiscordID, &guild)
 	if err != nil {
 		log.Printf("❌ ERROR [UpdateGuildConfig] resolving Guild %s: %v", guildDiscordID, err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to resolve Guild: " + err.Error(),
-		})
+		return utils.JSONError(c, fiber.StatusInternalServerError, "Failed to resolve Guild: "+err.Error())
 	}
 	if !found {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": "Guild not found in local database mapping",
-		})
+		return utils.JSONError(c, fiber.StatusNotFound, "Guild not found in local database mapping")
 	}
 
 	// 2. Perform partial update (PATCH) of announcement channel ID
@@ -211,17 +199,17 @@ func (h *ConfigHandler) HandleUpdateGuildConfig(c *fiber.Ctx) error {
 	var updated pocketbase.GuildRecord
 	if err := h.repo.UpdateRecord("guilds", guild.ID, &updateData, &updated); err != nil {
 		log.Printf("❌ ERROR [UpdateGuildConfig] updating Guild ID %s: %v", guild.ID, err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to update guild configuration in PocketBase: " + err.Error(),
-		})
+		return utils.JSONError(c, fiber.StatusInternalServerError, "Failed to update guild configuration in PocketBase: "+err.Error())
 	}
 
 	log.Printf("✅ CONFIG: Updated Guild Announcement Channel for %s (%s): %s",
 		updated.Name, updated.DiscordID, updated.AnnouncementChannelID)
 
-	return c.Status(fiber.StatusOK).JSON(updated)
+	// Return updated guild mapped to DTO if needed, but here we can just return empty or success
+	return utils.JSONSuccess(c, fiber.StatusOK, fiber.Map{
+		"message": "Guild updated successfully",
+	})
 }
-
 
 // UpdateSquadChannelRequest represents the payload to update a role's squad_channel_id
 type UpdateSquadChannelRequest struct {
@@ -232,16 +220,12 @@ type UpdateSquadChannelRequest struct {
 func (h *ConfigHandler) HandleUpdateSquadChannel(c *fiber.Ctx) error {
 	roleID := c.Params("roleId")
 	if roleID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "The roleId parameter is required",
-		})
+		return utils.JSONError(c, fiber.StatusBadRequest, "The roleId parameter is required")
 	}
 
 	var req UpdateSquadChannelRequest
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid JSON body format",
-		})
+		return utils.JSONError(c, fiber.StatusBadRequest, "Invalid JSON body format")
 	}
 
 	payload := map[string]interface{}{
@@ -251,113 +235,76 @@ func (h *ConfigHandler) HandleUpdateSquadChannel(c *fiber.Ctx) error {
 	err := h.repo.UpdateRecord("roles", roleID, payload, nil)
 	if err != nil {
 		log.Printf("❌ ERROR [UpdateSquadChannel] for Role ID %s: %v", roleID, err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to update squad channel in database",
-		})
+		return utils.JSONError(c, fiber.StatusInternalServerError, "Failed to update squad channel in database")
 	}
 
 	log.Printf("✅ [ConfigHandler] Squad channel for Role ID %s successfully updated", roleID)
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"message": "Squad channel updated successfully",
-	})
+	return utils.JSONError(c, fiber.StatusOK, "Squad channel updated successfully")
 }
 
 // HandleGetGuildStudents fetches all students associated with a Discord guild ID from the local database.
 func (h *ConfigHandler) HandleGetGuildStudents(c *fiber.Ctx) error {
-	guildDiscordID := c.Params("guildId")
+	guildDiscordID := c.Params("id")
 	if guildDiscordID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "The guildId parameter is required in the path route",
-		})
+		return utils.JSONError(c, fiber.StatusBadRequest, "The guildId parameter is required in the path route")
 	}
 
 	// 1. Resolve Discord Guild ID to PocketBase Guild Record
 	guild, err := h.resolveOrAutoCreateGuild(guildDiscordID)
 	if err != nil {
 		log.Printf("❌ ERROR [GetGuildStudents] resolving/auto-creating Guild %s: %v", guildDiscordID, err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to resolve/auto-create Guild: " + err.Error(),
-		})
+		return utils.JSONError(c, fiber.StatusInternalServerError, "Failed to resolve/auto-create Guild: "+err.Error())
 	}
 
 	// 2. Fetch all mapped students for that Guild from PocketBase
 	students, err := h.repo.FindStudentsByGuild(guild.ID)
 	if err != nil {
 		log.Printf("❌ ERROR [GetGuildStudents] fetching students for Guild %s: %v", guild.ID, err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to fetch students from database: " + err.Error(),
-		})
+		return utils.JSONError(c, fiber.StatusInternalServerError, "Failed to fetch students from database: "+err.Error())
 	}
 
-	return c.JSON(students)
-}
+	var studentDTOs []dto.StudentListResponse
+	for _, s := range students {
+		studentDTOs = append(studentDTOs, dto.ToStudentListResponse(s))
+	}
 
-// GuildMappingResponse represents the taxonomy structure for a Guild.
-type GuildMappingResponse struct {
-	SquadRoles  []string `json:"squad_roles"`
-	MentorRoles []string `json:"mentor_roles"`
-	SkillRoles  []string `json:"skill_roles"`
+	return utils.JSONSuccess(c, fiber.StatusOK, studentDTOs)
 }
 
 // HandleGetGuildMapping retrieves the current taxonomy mapping for a Guild.
 func (h *ConfigHandler) HandleGetGuildMapping(c *fiber.Ctx) error {
-	guildDiscordID := c.Params("guildId")
+	guildDiscordID := c.Params("id")
 	if guildDiscordID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "The guildId parameter is required in the path route",
-		})
+		return utils.JSONError(c, fiber.StatusBadRequest, "The guildId parameter is required in the path route")
 	}
 
 	guild, err := h.resolveOrAutoCreateGuild(guildDiscordID)
 	if err != nil {
 		log.Printf("❌ ERROR [GetGuildMapping] resolving Guild %s: %v", guildDiscordID, err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to resolve Guild: " + err.Error(),
-		})
+		return utils.JSONError(c, fiber.StatusInternalServerError, "Failed to resolve Guild: "+err.Error())
 	}
 
-	mapping := GuildMappingResponse{
-		SquadRoles:  guild.SquadRoles,
-		MentorRoles: guild.MentorRoles,
-		SkillRoles:  guild.SkillRoles,
-	}
+	mapping := dto.ToGuildMappingResponse(*guild)
 
-	// Ensure arrays are not nil
-	if mapping.SquadRoles == nil {
-		mapping.SquadRoles = []string{}
-	}
-	if mapping.MentorRoles == nil {
-		mapping.MentorRoles = []string{}
-	}
-	if mapping.SkillRoles == nil {
-		mapping.SkillRoles = []string{}
-	}
-
-	return c.JSON(mapping)
+	return utils.JSONSuccess(c, fiber.StatusOK, mapping)
 }
 
 // HandleUpdateGuildMapping updates the taxonomy mapping for a Guild in PocketBase.
 func (h *ConfigHandler) HandleUpdateGuildMapping(c *fiber.Ctx) error {
-	guildDiscordID := c.Params("guildId")
+	guildDiscordID := c.Params("id")
 	if guildDiscordID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "The guildId path parameter is required in the route",
-		})
+		return utils.JSONError(c, fiber.StatusBadRequest, "The guildId path parameter is required in the route")
 	}
 
-	var req GuildMappingResponse
+	var req dto.GuildMappingResponse
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid request body format",
-		})
+		return utils.JSONError(c, fiber.StatusBadRequest, "Invalid request body format")
 	}
 
 	guild, err := h.resolveOrAutoCreateGuild(guildDiscordID)
 	if err != nil {
 		log.Printf("❌ ERROR [UpdateGuildMapping] resolving Guild %s: %v", guildDiscordID, err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to resolve Guild: " + err.Error(),
-		})
+		return utils.JSONError(c, fiber.StatusInternalServerError, "Failed to resolve Guild: "+err.Error())
 	}
 
 	// Perform partial update of taxonomy fields
@@ -370,9 +317,7 @@ func (h *ConfigHandler) HandleUpdateGuildMapping(c *fiber.Ctx) error {
 	var updated pocketbase.GuildRecord
 	if err := h.repo.UpdateRecord("guilds", guild.ID, &updateData, &updated); err != nil {
 		log.Printf("❌ ERROR [UpdateGuildMapping] updating Guild ID %s: %v", guild.ID, err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to update guild mapping in PocketBase: " + err.Error(),
-		})
+		return utils.JSONError(c, fiber.StatusInternalServerError, "Failed to update guild mapping in PocketBase: "+err.Error())
 	}
 
 	// Sync roles to PocketBase "roles" collection with the correct boolean flags
@@ -388,7 +333,7 @@ func (h *ConfigHandler) HandleUpdateGuildMapping(c *fiber.Ctx) error {
 	syncRoleConfig := func(discordRoleID string, isMonitored bool, isStaff bool) {
 		var pbRole pocketbase.RoleRecord
 		found, _ := h.repo.FindFirstByDiscordID("roles", discordRoleID, &pbRole)
-		
+
 		name := roleNameMap[discordRoleID]
 		if name == "" {
 			name = "Sincronizado via Taxonomia"
@@ -427,9 +372,5 @@ func (h *ConfigHandler) HandleUpdateGuildMapping(c *fiber.Ctx) error {
 
 	log.Printf("✅ CONFIG: Updated Guild Mapping and synced %d Roles for %s (%s)", len(req.SquadRoles)+len(req.MentorRoles)+len(req.SkillRoles), updated.Name, updated.DiscordID)
 
-	return c.Status(fiber.StatusOK).JSON(GuildMappingResponse{
-		SquadRoles:  updated.SquadRoles,
-		MentorRoles: updated.MentorRoles,
-		SkillRoles:  updated.SkillRoles,
-	})
+	return utils.JSONSuccess(c, fiber.StatusOK, dto.ToGuildMappingResponse(updated))
 }

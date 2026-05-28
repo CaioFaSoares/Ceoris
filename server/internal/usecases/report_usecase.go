@@ -1,8 +1,8 @@
 package usecases
 
 import (
-	"fmt"
 	"chantry/server/internal/pocketbase"
+	"fmt"
 )
 
 // ReportSummary defines the mathematical aggregations for the Streamlit cards.
@@ -67,7 +67,7 @@ func (u *ReportUsecase) GenerateExportReport(guildID, roleID, startDate, endDate
 		if studentName == "" {
 			studentName = rec.Expand.Student.Username
 		}
-		
+
 		roleName := rec.Expand.Student.Role.Name
 		if roleName == "" {
 			roleName = "Unassigned"

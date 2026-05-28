@@ -178,10 +178,10 @@ func (u *SyncUsecase) SyncStudentsByRole(guildID string, roleID string) (Metrics
 			// Compare dynamic data to check if partial PATCH is required (optimizing API requests)
 			if student.Username != m.Username || student.Nickname != m.Nickname || student.RoleID != roleRecord.ID || student.GuildID != guildRecord.ID {
 				updateData := map[string]interface{}{
-					"username":  m.Username,
-					"nickname":  m.Nickname,
-					"role_id":   roleRecord.ID,
-					"guild_id":  guildRecord.ID,
+					"username": m.Username,
+					"nickname": m.Nickname,
+					"role_id":  roleRecord.ID,
+					"guild_id": guildRecord.ID,
 				}
 				var updatedStudent pocketbase.StudentRecord
 				if err := u.pbRepo.UpdateRecord("students", student.ID, updateData, &updatedStudent); err != nil {
@@ -242,7 +242,7 @@ func (u *SyncUsecase) AdvancedSync(guildID string) (AdvancedSyncMetrics, error) 
 	if len(guildRecord.SquadRoles) > 0 {
 		for _, squadRoleID := range guildRecord.SquadRoles {
 			log.Printf("🚀 [ADV-SYNC] Syncing students for Squad Role %s", squadRoleID)
-			
+
 			// A. Executa a sincronização base de membros (Trazendo do Discord para o PocketBase)
 			roleMetrics, err := u.SyncStudentsByRole(guildID, squadRoleID)
 			if err != nil {
@@ -255,30 +255,21 @@ func (u *SyncUsecase) AdvancedSync(guildID string) (AdvancedSyncMetrics, error) 
 			metrics.StudentsInserted += roleMetrics.NewInserted
 			metrics.StudentsUpdated += roleMetrics.Updated
 
-			// B. Localizar o PB ID do cargo para verificar se há SquadChannelID (Categoria 1-on-1)
-			var roleRecord pocketbase.RoleRecord
-			roleFound, err := u.pbRepo.FindFirstByDiscordID("roles", squadRoleID, &roleRecord)
-			if err != nil {
-				log.Printf("⚠️ Warning: Failed to query role %s in pocketbase after sync: %v", squadRoleID, err)
-				continue
-			}
-
-			if roleFound && roleRecord.SquadChannelID != "" {
-				log.Printf("🛠️ [ADV-SYNC] Squad Role %s has associated Category %s. Triggering Auto-Heal...", squadRoleID, roleRecord.SquadChannelID)
-				
-				// Disparar o Auto Heal (ProvisionUsecase)
-				healMetrics, err := u.provisionUsecase.HealChannelsByCategory(guildID, roleRecord.SquadChannelID)
-				if err != nil {
-					log.Printf("❌ ERROR [ADV-SYNC] Failed to auto-heal channels for Category %s: %v", roleRecord.SquadChannelID, err)
-				} else {
-					log.Printf("✅ [ADV-SYNC] Auto-Heal completed for Category %s. Mapped: %d, Unmapped: %d", roleRecord.SquadChannelID, healMetrics.SuccessfullyMapped, healMetrics.UnmappedChannels)
-				}
-			}
+			// B. A sincronização localizou os alunos da turma. O auto-heal agora é global.
 		}
+
+		// Após sincronizar todas as turmas da taxonomia, dispara o Auto Heal Global para a guilda
+		log.Printf("🛠️ [ADV-SYNC] Squad sync complete. Triggering global Auto-Heal for Guild %s...", guildID)
+		healMetrics, err := u.provisionUsecase.HealChannelsByGuild(guildID)
+		if err != nil {
+			log.Printf("❌ ERROR [ADV-SYNC] Failed to auto-heal channels for Guild %s: %v", guildID, err)
+		} else {
+			log.Printf("✅ [ADV-SYNC] Auto-Heal completed for Guild %s. Mapped: %d, Unmapped: %d", guildID, healMetrics.SuccessfullyMapped, healMetrics.UnmappedChannels)
+		}
+
 	} else {
 		log.Printf("⚠️ [ADV-SYNC] Guild %s has no SquadRoles mapped in its taxonomy. Skipping student sync.", guildID)
 	}
 
 	return metrics, nil
 }
-

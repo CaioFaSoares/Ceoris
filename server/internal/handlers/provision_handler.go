@@ -5,6 +5,8 @@ import (
 
 	"chantry/server/internal/usecases"
 	"github.com/gofiber/fiber/v2"
+
+	"chantry/server/internal/utils"
 )
 
 type ProvisionHandler struct {
@@ -18,112 +20,70 @@ func NewProvisionHandler(usecase *usecases.ProvisionUsecase) *ProvisionHandler {
 	}
 }
 
-type ProvisionChannelsRequest struct {
-	CategoryID string `json:"category_id"`
-	RoleID     string `json:"role_id"`
-}
-
-// HandleProvisionChannels parses the HTTP inputs, invokes the ProvisionUsecase, and returns metrics.
+// HandleProvisionChannels invokes the ProvisionUsecase in background for the entire guild.
 func (h *ProvisionHandler) HandleProvisionChannels(c *fiber.Ctx) error {
-	guildID := c.Params("guildId")
+	guildID := c.Params("id")
 	if guildID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "The guildId path parameter is required in the route",
-		})
+		return utils.JSONError(c, fiber.StatusBadRequest, "The guildId path parameter is required in the route")
 	}
 
-	var req ProvisionChannelsRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid or malformed JSON request body",
-		})
-	}
+	log.Printf("[PROVISION-API] Triggered async batch provisioning for Guild: %s", guildID)
+	
+	// Fire-and-Forget goroutine
+	go func(gID string) {
+		log.Printf("[BACKGROUND-PROVISION] Starting batch creation for Guild: %s", gID)
+		_, err := h.provisionUsecase.BatchCreatePrivateChannels(gID)
+		if err != nil {
+			log.Printf("❌ ERROR [BACKGROUND-PROVISION] for Guild ID %s: %v", gID, err)
+			return
+		}
+		log.Printf("✅ SUCCESS [BACKGROUND-PROVISION] for Guild ID %s completed", gID)
+	}(guildID)
 
-	if req.CategoryID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "The category_id field is required in the JSON body",
-		})
-	}
-
-	if req.RoleID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "The role_id field is required in the JSON body",
-		})
-	}
-
-	log.Printf("[PROVISION-API] Triggered batch provisioning for Guild: %s, Category: %s, Role: %s", guildID, req.CategoryID, req.RoleID)
-	metrics, err := h.provisionUsecase.BatchCreatePrivateChannels(guildID, req.CategoryID, req.RoleID)
-	if err != nil {
-		log.Printf("❌ ERROR [HandleProvisionChannels] for Guild ID %s: %v", guildID, err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
-	}
-
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"message": "Provisionamento concluído",
-		"metrics": metrics,
+	return utils.JSONSuccess(c, fiber.StatusAccepted, fiber.Map{
+		"status":  "processing",
+		"message": "A criação de canais foi iniciada em background",
 	})
 }
 
-type HealChannelsRequest struct {
-	CategoryID string `json:"category_id"`
-}
-
-// HandleHealChannels parses path params and body, invokes the Usecase to heal student channel mapping, and returns HealMetrics.
+// HandleHealChannels invokes the Usecase to heal student channel mapping in background for the entire guild.
 func (h *ProvisionHandler) HandleHealChannels(c *fiber.Ctx) error {
-	guildID := c.Params("guildId")
+	guildID := c.Params("id")
 	if guildID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "The guildId path parameter is required in the route",
-		})
+		return utils.JSONError(c, fiber.StatusBadRequest, "The guildId path parameter is required in the route")
 	}
 
-	var req HealChannelsRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid or malformed JSON request body",
-		})
-	}
+	log.Printf("[PROVISION-API] Triggered async channel Auto-Healing for Guild: %s", guildID)
+	
+	// Fire-and-Forget goroutine
+	go func(gID string) {
+		log.Printf("[BACKGROUND-HEAL] Starting auto-healing for Guild: %s", gID)
+		_, err := h.provisionUsecase.HealChannelsByGuild(gID)
+		if err != nil {
+			log.Printf("❌ ERROR [BACKGROUND-HEAL] for Guild ID %s: %v", gID, err)
+			return
+		}
+		log.Printf("✅ SUCCESS [BACKGROUND-HEAL] for Guild ID %s completed", gID)
+	}(guildID)
 
-	if req.CategoryID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "The category_id field is required in the JSON body",
-		})
-	}
-
-	log.Printf("[PROVISION-API] Triggered channel Auto-Healing for Guild: %s, Category: %s", guildID, req.CategoryID)
-	metrics, err := h.provisionUsecase.HealChannelsByCategory(guildID, req.CategoryID)
-	if err != nil {
-		log.Printf("❌ ERROR [HandleHealChannels] for Guild ID %s: %v", guildID, err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
-	}
-
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"message": "Processo de auto-healing concluído",
-		"metrics": metrics,
+	return utils.JSONSuccess(c, fiber.StatusAccepted, fiber.Map{
+		"status":  "processing",
+		"message": "O processo de auto-healing foi iniciado em background",
 	})
 }
 
 // HandleGetProvisionPageData handles GET /api/ui/provision-page/:guildId, returning the aggregated data for the page.
 func (h *ProvisionHandler) HandleGetProvisionPageData(c *fiber.Ctx) error {
-	guildID := c.Params("guildId")
+	guildID := c.Params("id")
 	if guildID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "The guildId path parameter is required in the route",
-		})
+		return utils.JSONError(c, fiber.StatusBadRequest, "The guildId path parameter is required in the route")
 	}
 
 	data, err := h.provisionUsecase.GetProvisionPageData(guildID)
 	if err != nil {
 		log.Printf("❌ ERROR [HandleGetProvisionPageData] for Guild ID %s: %v", guildID, err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return utils.JSONError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	return c.Status(fiber.StatusOK).JSON(data)
+	return utils.JSONSuccess(c, fiber.StatusOK, data)
 }
-

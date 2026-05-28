@@ -5,6 +5,8 @@ import (
 
 	"chantry/server/internal/usecases"
 	"github.com/gofiber/fiber/v2"
+
+	"chantry/server/internal/utils"
 )
 
 // UIHandler coordinates incoming HTTP requests specifically meant for the BFF (Streamlit)
@@ -23,9 +25,7 @@ func NewUIHandler(uiUsecase *usecases.UIUsecase) *UIHandler {
 func (h *UIHandler) HandleSquadDashboard(c *fiber.Ctx) error {
 	roleID := c.Params("roleId")
 	if roleID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "The roleId path parameter is required",
-		})
+		return utils.JSONError(c, fiber.StatusBadRequest, "The roleId path parameter is required")
 	}
 
 	log.Printf("[UI BFF] Generating squad dashboard data for Role: %s", roleID)
@@ -33,10 +33,8 @@ func (h *UIHandler) HandleSquadDashboard(c *fiber.Ctx) error {
 	data, err := h.uiUsecase.GetSquadDashboardData(roleID)
 	if err != nil {
 		log.Printf("❌ ERROR [HandleSquadDashboard]: %v", err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return utils.JSONError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	return c.Status(fiber.StatusOK).JSON(data)
+	return utils.JSONSuccess(c, fiber.StatusOK, data)
 }

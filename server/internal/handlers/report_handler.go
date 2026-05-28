@@ -3,9 +3,12 @@ package handlers
 import (
 	"log"
 
+	"chantry/server/internal/dto"
 	"chantry/server/internal/pocketbase"
 	"chantry/server/internal/usecases"
 	"github.com/gofiber/fiber/v2"
+
+	"chantry/server/internal/utils"
 )
 
 // ReportHandler handles requests for analytical report queries.
@@ -22,40 +25,24 @@ func NewReportHandler(repo *pocketbase.Repository, reportUsecase *usecases.Repor
 	}
 }
 
-// AttendanceReportDTO defines the response payload structure for attendance records.
-type AttendanceReportDTO struct {
-	AttendanceID    string `json:"attendance_id"`
-	StudentName     string `json:"student_name"`
-	StudentNickname string `json:"student_nickname"`
-	Date            string `json:"date"`
-	ClockIn         string `json:"clock_in"`
-	ClockOut        string `json:"clock_out"`
-	Status          string `json:"status"`
-	Source          string `json:"source"`
-}
+// Handled by DTO layer.
 
 // HandleGetAttendances extracts path parameters and query arguments, queries PocketBase,
 // maps relational structures, and serves a cleaned JSON daily attendance list.
 func (h *ReportHandler) HandleGetAttendances(c *fiber.Ctx) error {
-	guildID := c.Params("guildId")
+	guildID := c.Params("id")
 	if guildID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "The guildId path parameter is required",
-		})
+		return utils.JSONError(c, fiber.StatusBadRequest, "The guildId path parameter is required")
 	}
 
 	dateStr := c.Query("date")
 	if dateStr == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "The date query parameter is required (format: YYYY-MM-DD)",
-		})
+		return utils.JSONError(c, fiber.StatusBadRequest, "The date query parameter is required (format: YYYY-MM-DD)")
 	}
 
 	roleID := c.Query("role_id")
 	if roleID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "The role_id query parameter is required",
-		})
+		return utils.JSONError(c, fiber.StatusBadRequest, "The role_id query parameter is required")
 	}
 
 	log.Printf("[REPORT] Fetching attendances for Guild: %s, Role: %s, Date: %s", guildID, roleID, dateStr)
@@ -63,50 +50,29 @@ func (h *ReportHandler) HandleGetAttendances(c *fiber.Ctx) error {
 	records, err := h.repo.GetAttendancesByDateAndRole(guildID, roleID, dateStr)
 	if err != nil {
 		log.Printf("❌ ERROR [ReportHandler.HandleGetAttendances]: %v", err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return utils.JSONError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	report := make([]AttendanceReportDTO, 0, len(records))
+	report := make([]dto.AttendanceListResponse, 0, len(records))
 	for _, rec := range records {
-		studentName := rec.Expand.Student.Username
-		studentNickname := rec.Expand.Student.Nickname
-		if studentNickname == "" {
-			studentNickname = studentName
-		}
-
-		report = append(report, AttendanceReportDTO{
-			AttendanceID:    rec.ID,
-			StudentName:     studentName,
-			StudentNickname: studentNickname,
-			Date:            rec.Date,
-			ClockIn:         rec.ClockIn,
-			ClockOut:        rec.ClockOut,
-			Status:          rec.Status,
-			Source:          rec.Source,
-		})
+		report = append(report, dto.ToAttendanceListResponse(rec))
 	}
 
-	return c.Status(fiber.StatusOK).JSON(report)
+	return utils.JSONSuccess(c, fiber.StatusOK, report)
 }
 
 // HandleExportReport extracts parameters, invokes the ReportUsecase, and returns the aggregated data.
 func (h *ReportHandler) HandleExportReport(c *fiber.Ctx) error {
-	guildID := c.Params("guildId")
+	guildID := c.Params("id")
 	if guildID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "The guildId path parameter is required",
-		})
+		return utils.JSONError(c, fiber.StatusBadRequest, "The guildId path parameter is required")
 	}
 
 	startDate := c.Query("start_date")
 	endDate := c.Query("end_date")
-	
+
 	if startDate == "" || endDate == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "start_date and end_date query parameters are required (format: YYYY-MM-DD)",
-		})
+		return utils.JSONError(c, fiber.StatusBadRequest, "start_date and end_date query parameters are required (format: YYYY-MM-DD)")
 	}
 
 	roleID := c.Query("role_id") // Optional
@@ -119,16 +85,14 @@ func (h *ReportHandler) HandleExportReport(c *fiber.Ctx) error {
 	usecase := h.reportUsecase
 	if usecase == nil {
 		// Fallback if not injected (to prevent panic before main.go update)
-		usecase = usecases.NewReportUsecase(h.repo) 
+		usecase = usecases.NewReportUsecase(h.repo)
 	}
 
 	report, err := usecase.GenerateExportReport(guildID, roleID, startDate, endDate)
 	if err != nil {
 		log.Printf("❌ ERROR [ReportHandler.HandleExportReport]: %v", err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return utils.JSONError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	return c.Status(fiber.StatusOK).JSON(report)
+	return utils.JSONSuccess(c, fiber.StatusOK, report)
 }

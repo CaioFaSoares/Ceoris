@@ -41,13 +41,19 @@ type StudentRecord struct {
 	DiscordID      string   `json:"discord_id"`
 	Username       string   `json:"username"`
 	Nickname       string   `json:"nickname"`
-	RoleID         string   `json:"role_id"`            // relation to roles (max 1)
-	SecondaryRoles []string `json:"secondary_roles"`     // relation to roles (multiple)
-	GuildID        string   `json:"guild_id"`           // relation to guilds (max 1)
-	ChannelID      string   `json:"channel_id"`         // Discord channel ID
-	Status         string   `json:"status"`             // select: active, inactive, dropped
-	Shift          string   `json:"shift"`              // select: morning, afternoon, night
+	RoleID         string   `json:"role_id"`           // relation to roles (max 1)
+	SecondaryRoles []string `json:"secondary_roles"`   // relation to roles (multiple)
+	GuildID        string   `json:"guild_id"`          // relation to guilds (max 1)
+	ChannelID      string   `json:"channel_id"`        // Discord channel ID
+	Status         string   `json:"status"`            // select: active, inactive, dropped
+	Shift          string   `json:"shift"`             // select: morning, afternoon, night
 	UserID         string   `json:"user_id,omitempty"` // relation to _pb_users_auth_ (max 1)
+	Expand         struct {
+		Role struct {
+			Name           string `json:"name"`
+			SquadChannelID string `json:"squad_channel_id"` // NOVO: Para provisionamento
+		} `json:"role_id"`
+	} `json:"expand,omitempty"`
 }
 
 // ManagerRecord maps the "managers" collection schema.
@@ -56,26 +62,26 @@ type ManagerRecord struct {
 	PBRecord
 	DiscordID string   `json:"discord_id"`
 	Name      string   `json:"name"`
-	Role      string   `json:"role"`               // select: admin, mentor, pedagogy
-	Guilds    []string `json:"guilds"`             // relation to guilds (multiple)
+	Role      string   `json:"role"`              // select: admin, mentor, pedagogy
+	Guilds    []string `json:"guilds"`            // relation to guilds (multiple)
 	UserID    string   `json:"user_id,omitempty"` // relation to _pb_users_auth_ (max 1)
 }
 
 // AttendanceRecord maps the "attendances" collection schema.
 type AttendanceRecord struct {
 	PBRecord
-	StudentID          string `json:"student_id"` // relation to students (max 1)
-	Date               string `json:"date"`       // date
-	ClockIn            string `json:"clock_in"`   // date
-	ClockOut           string `json:"clock_out"`  // date
-	Status             string `json:"status"`     // select: pending_checkout, completed, absent, justified, late
-	Source             string `json:"source"`     // select: discord_bot, manual_override
-	Notes              string `json:"notes"`      // notes
-	CheckoutPromptSent bool   `json:"checkout_prompt_sent"` // NOVO
-	Expand             struct {                             // NOVO: Para leitura via query
+	StudentID          string   `json:"student_id"`           // relation to students (max 1)
+	Date               string   `json:"date"`                 // date
+	ClockIn            string   `json:"clock_in"`             // date
+	ClockOut           string   `json:"clock_out"`            // date
+	Status             string   `json:"status"`               // select: pending_checkout, completed, absent, justified, late
+	Source             string   `json:"source"`               // select: discord_bot, manual_override
+	Notes              string   `json:"notes"`                // notes
+	CheckoutPromptSent bool     `json:"checkout_prompt_sent"` // NOVO
+	Expand             struct { // NOVO: Para leitura via query
 		Student struct {
-			Username  string `json:"username"` // NOVO
-			Nickname  string `json:"nickname"` // NOVO
+			Username  string `json:"username"`   // NOVO
+			Nickname  string `json:"nickname"`   // NOVO
 			DiscordID string `json:"discord_id"` // NOVO: Para relatórios
 			ChannelID string `json:"channel_id"`
 			Role      struct {
@@ -109,4 +115,3 @@ type BroadcastRecord struct {
 	MetricsSent   int      `json:"metrics_sent"`
 	MetricsErrors int      `json:"metrics_errors"`
 }
-

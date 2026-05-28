@@ -31,7 +31,7 @@ const isSubmitting = ref(false)
 const { data: discordRoles, status: loadingRoles } = useLazyAsyncData(
   'discord-all-roles',
   () => selectedGuildId.value 
-    ? useApi(`/api/discord/guilds/${selectedGuildId.value}/roles`)
+    ? useApi(`/api/guilds/${selectedGuildId.value}/discord/roles`)
     : Promise.resolve([]),
   { watch: [selectedGuildId], default: () => [] }
 )
@@ -41,7 +41,7 @@ const { status: loadingMapping } = useLazyAsyncData(
   'guild-role-mapping',
   async () => {
     if (!selectedGuildId.value) return null
-    const mapping = await useApi<Schema>(`/api/config/guilds/${selectedGuildId.value}/mapping`)
+    const mapping = await useApi<Schema>(`/api/guilds/${selectedGuildId.value}/mapping`)
     // Atualiza o state com os dados vindos do banco
     if (mapping) {
       state.squad_roles = mapping.squad_roles || []
@@ -57,7 +57,7 @@ const { status: loadingMapping } = useLazyAsyncData(
 async function onSubmit(event: { data: Schema }) {
   isSubmitting.value = true
   try {
-    await useApi(`/api/config/guilds/${selectedGuildId.value}/mapping`, {
+    await useApi(`/api/guilds/${selectedGuildId.value}/mapping`, {
       method: 'PATCH',
       body: event.data
     })
