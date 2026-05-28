@@ -6,7 +6,7 @@ services:
     build:
       context: ./app
       dockerfile: Dockerfile.dev
-    container_name: ceoris-nuxt
+    container_name: nuxt
     ports:
       - "12001:3000"
     environment:
@@ -27,7 +27,7 @@ services:
     build:
       context: ./server
       dockerfile: Dockerfile
-    container_name: ceoris-goserver
+    container_name: goserver
     ports:
       - "12000:12000"
     environment:
@@ -47,7 +47,7 @@ services:
   # 3. Banco de Dados Standalone (PocketBase Oficial)
   ceoris-database:
     image: ghcr.io/muchobien/pocketbase:latest
-    container_name: ceoris-pocketbase
+    container_name: pocketbase
     ports:
       - "12090:8090" # Portal de Admin acessível em http://localhost:12090/_/
     volumes:

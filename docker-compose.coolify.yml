@@ -6,7 +6,7 @@ services:
     build:
       context: ./app
       dockerfile: Dockerfile.prod
-    container_name: ceoris-nuxt
+    container_name: nuxt
     restart: always
     expose:
       - "3000"
@@ -22,7 +22,7 @@ services:
     build:
       context: ./server
       dockerfile: Dockerfile
-    container_name: ceoris-goserver
+    container_name: goserver
     restart: always
     expose:
       - "12000"
@@ -46,7 +46,7 @@ services:
   # 3. Banco de Dados Standalone (PocketBase Oficial)
   ceoris-database:
     image: ghcr.io/muchobien/pocketbase:latest
-    container_name: ceoris-pocketbase
+    container_name: pocketbase
     restart: always
     expose:
       - "8090"
