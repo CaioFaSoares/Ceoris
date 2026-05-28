@@ -29,16 +29,22 @@ func (h *ProvisionHandler) HandleProvisionChannels(c *fiber.Ctx) error {
 
 	log.Printf("[PROVISION-API] Triggered async batch provisioning for Guild: %s", guildID)
 	
+	// Parse optional payload for selective provisioning
+	var opts usecases.ProvisionOptions
+	if err := c.BodyParser(&opts); err != nil && len(c.Body()) > 0 {
+		return utils.JSONError(c, fiber.StatusBadRequest, "Invalid JSON payload format")
+	}
+
 	// Fire-and-Forget goroutine
-	go func(gID string) {
+	go func(gID string, options usecases.ProvisionOptions) {
 		log.Printf("[BACKGROUND-PROVISION] Starting batch creation for Guild: %s", gID)
-		_, err := h.provisionUsecase.BatchCreatePrivateChannels(gID)
+		_, err := h.provisionUsecase.BatchCreatePrivateChannels(gID, options)
 		if err != nil {
 			log.Printf("❌ ERROR [BACKGROUND-PROVISION] for Guild ID %s: %v", gID, err)
 			return
 		}
 		log.Printf("✅ SUCCESS [BACKGROUND-PROVISION] for Guild ID %s completed", gID)
-	}(guildID)
+	}(guildID, opts)
 
 	return utils.JSONSuccess(c, fiber.StatusAccepted, fiber.Map{
 		"status":  "processing",

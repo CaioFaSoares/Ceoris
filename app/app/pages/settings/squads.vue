@@ -35,6 +35,19 @@ const handleRoleSaved = async () => {
   await refresh() // Atualiza a tabela na hora sem F5
 }
 
+// Controle de Edição
+const editingRole = ref<any>(null)
+
+const openAddRole = () => {
+  editingRole.value = null
+  isSlideoverOpen.value = true
+}
+
+const editRoleConfig = (role: any) => {
+  editingRole.value = role
+  isSlideoverOpen.value = true
+}
+
 // Função para remover monitoramento de uma turma
 const isDeleting = ref<string | null>(null)
 const removeRoleConfig = async (role: any) => {
@@ -63,13 +76,13 @@ const removeRoleConfig = async (role: any) => {
     <template #header>
       <UDashboardNavbar title="Configuração de Turmas e Turnos">
         <template #right>
-          <UButton
-            label="Adicionar Turma"
-            icon="i-heroicons-plus"
-            color="primary"
-            @click="isSlideoverOpen = true"
-            :disabled="!selectedGuildId"
-          />
+            <UButton
+              label="Adicionar Turma"
+              icon="i-heroicons-plus"
+              color="primary"
+              @click="openAddRole"
+              :disabled="!selectedGuildId"
+            />
         </template>
       </UDashboardNavbar>
     </template>
@@ -112,14 +125,23 @@ const removeRoleConfig = async (role: any) => {
             </template>
             
             <template #actions-cell="{ row }">
-              <UButton 
-                color="red" 
-                variant="ghost" 
-                icon="i-heroicons-trash" 
-                size="xs" 
-                :loading="isDeleting === row.original.id"
-                @click="removeRoleConfig(row.original)"
-              />
+              <div class="flex items-center gap-2">
+                <UButton 
+                  color="gray" 
+                  variant="ghost" 
+                  icon="i-heroicons-pencil-square" 
+                  size="xs" 
+                  @click="editRoleConfig(row.original)"
+                />
+                <UButton 
+                  color="red" 
+                  variant="ghost" 
+                  icon="i-heroicons-trash" 
+                  size="xs" 
+                  :loading="isDeleting === row.original.id"
+                  @click="removeRoleConfig(row.original)"
+                />
+              </div>
             </template>
           </UTable>
         </UCard>
@@ -127,6 +149,7 @@ const removeRoleConfig = async (role: any) => {
 
       <SettingsRoleFormSlideover 
         v-model="isSlideoverOpen" 
+        :role="editingRole"
         @saved="handleRoleSaved" 
       />
     </template>

@@ -3,6 +3,7 @@ import { z } from 'zod'
 
 const props = defineProps<{
   modelValue: boolean
+  role?: any
 }>()
 
 const emit = defineEmits(['update:modelValue', 'saved'])
@@ -30,6 +31,20 @@ const state = reactive<Schema>({
   role_id: '', 
   shift: 'morning', 
   check_in_time: '09:00' 
+})
+
+watch(() => props.modelValue, (isOpen) => {
+  if (isOpen) {
+    if (props.role) {
+      state.role_id = props.role.id
+      state.shift = props.role.shift || 'morning'
+      state.check_in_time = props.role.check_in_time || '09:00'
+    } else {
+      state.role_id = ''
+      state.shift = 'morning'
+      state.check_in_time = '09:00'
+    }
+  }
 })
 
 // 2. CORREÇÃO DO SUSPENSE (useLazyAsyncData) e Curto-circuito
@@ -84,7 +99,7 @@ async function onSubmit(event: { data: Schema }) {
         <template #header>
           <div class="flex items-center justify-between">
             <h3 class="text-base font-semibold leading-6 text-gray-900 dark:text-white">
-              Configurar Nova Turma
+              {{ role ? 'Editar Turma' : 'Configurar Nova Turma' }}
             </h3>
             <UButton color="gray" variant="ghost" icon="i-heroicons-x-mark-20-solid" class="-my-1" @click="isOpen = false" />
           </div>
@@ -102,6 +117,7 @@ async function onSubmit(event: { data: Schema }) {
               searchable
               placeholder="Selecione o cargo correspondente"
               class="w-full"
+              :disabled="!!role"
             >
               <template #empty>
                 Nenhum cargo encontrado. (Faça o Sync primeiro)

@@ -1,5 +1,24 @@
 package pocketbase
 
+import "encoding/json"
+
+// PBStringArray is a custom type to handle PocketBase returning "" instead of [] for empty multiple relations/JSON.
+type PBStringArray []string
+
+// UnmarshalJSON safely unmarshals a JSON array or an empty string into a slice of strings.
+func (a *PBStringArray) UnmarshalJSON(data []byte) error {
+	if string(data) == `""` || string(data) == `null` {
+		*a = []string{}
+		return nil
+	}
+	var s []string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+	*a = s
+	return nil
+}
+
 // PBRecord represents the common fields injected by PocketBase in every collection record.
 type PBRecord struct {
 	ID      string `json:"id,omitempty"` // Internal PocketBase ID (15 chars)
@@ -14,9 +33,9 @@ type GuildRecord struct {
 	Name                  string   `json:"name"`
 	Status                string   `json:"status"` // select: active, archived
 	AnnouncementChannelID string   `json:"announcement_channel_id"`
-	SquadRoles            []string `json:"squad_roles"`  // NOVO: Taxonomia (JSON)
-	MentorRoles           []string `json:"mentor_roles"` // NOVO: Taxonomia (JSON)
-	SkillRoles            []string `json:"skill_roles"`  // NOVO: Taxonomia (JSON)
+	SquadRoles            PBStringArray `json:"squad_roles"`  // NOVO: Taxonomia (JSON)
+	MentorRoles           PBStringArray `json:"mentor_roles"` // NOVO: Taxonomia (JSON)
+	SkillRoles            PBStringArray `json:"skill_roles"`  // NOVO: Taxonomia (JSON)
 }
 
 // RoleRecord maps the "roles" collection schema.
@@ -42,7 +61,7 @@ type StudentRecord struct {
 	Username       string   `json:"username"`
 	Nickname       string   `json:"nickname"`
 	RoleID         string   `json:"role_id"`           // relation to roles (max 1)
-	SecondaryRoles []string `json:"secondary_roles"`   // relation to roles (multiple)
+	SecondaryRoles PBStringArray `json:"secondary_roles"`   // relation to roles (multiple)
 	GuildID        string   `json:"guild_id"`          // relation to guilds (max 1)
 	ChannelID      string   `json:"channel_id"`        // Discord channel ID
 	Status         string   `json:"status"`            // select: active, inactive, dropped
@@ -63,7 +82,7 @@ type ManagerRecord struct {
 	DiscordID string   `json:"discord_id"`
 	Name      string   `json:"name"`
 	Role      string   `json:"role"`              // select: admin, mentor, pedagogy
-	Guilds    []string `json:"guilds"`            // relation to guilds (multiple)
+	Guilds    PBStringArray `json:"guilds"`            // relation to guilds (multiple)
 	UserID    string   `json:"user_id,omitempty"` // relation to _pb_users_auth_ (max 1)
 }
 

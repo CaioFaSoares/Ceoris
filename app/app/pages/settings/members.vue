@@ -16,6 +16,9 @@ const q = ref('') // Search query
 const page = ref(1)
 const pageCount = ref(10) // Quantidade por página
 const isSyncing = ref(false)
+const selected = ref<any[]>([])
+const isSquadModalOpen = ref(false)
+const selectedSquadForProvision = ref('')
 
 // 1. Fetch dos Alunos (Lazy para não bloquear renderização)
 const { data: students, status, refresh } = useLazyAsyncData<any[]>(
@@ -25,6 +28,12 @@ const { data: students, status, refresh } = useLazyAsyncData<any[]>(
     watch: [selectedGuildId],
     default: () => [] 
   }
+)
+
+const { data: squads } = useLazyAsyncData<any[]>(
+  'guild-squads-for-provision',
+  () => selectedGuildId.value ? useApi(`/api/guilds/${selectedGuildId.value}/squads`) : Promise.resolve([]), 
+  { watch: [selectedGuildId], default: () => [] }
 )
 
 // 2. Lógica de Filtro (Search Client-side) e Paginação
@@ -55,8 +64,48 @@ const paginatedRows = computed(() => {
 // 3. Funções de Background (Fire-and-Forget)
 async function handleProvisionChannels() {
   if (!selectedGuildId.value) return
+  
+  let payload = {}
+  
+  // Se houver alunos selecionados, provisiona apenas para eles
+  if (selected.value.length > 0) {
+    const studentIds = selected.value.map(s => s.id)
+    payload = {
+      target_type: 'students',
+      student_ids: studentIds
+    }
+  } else {
+    // Todos pendentes
+    payload = { target_type: 'all' }
+  }
+
+  executeProvision(payload)
+}
+
+async function handleProvisionBySquad() {
+  if (!selectedGuildId.value || !selectedSquadForProvision.value) return
+  
+  const payload = {
+    target_type: 'squad',
+    squad_id: selectedSquadForProvision.value
+  }
+  
+  isSquadModalOpen.value = false
+  selectedSquadForProvision.value = ''
+  
+  executeProvision(payload)
+}
+
+async function executeProvision(payload: any) {
   try {
-    await useApi(`/api/guilds/${selectedGuildId.value}/provision`, { method: 'POST' })
+    await useApi(`/api/guilds/${selectedGuildId.value}/provision`, { 
+      method: 'POST',
+      body: payload
+    })
+    
+    // Limpa a seleção
+    selected.value = []
+    
     toast.add({
       title: 'Ação Iniciada',
       description: 'Provisionamento em background iniciado!',
@@ -106,18 +155,27 @@ async function handleSyncDiscord() {
   }
 }
 
-// 4. Dropdown Actions e Motor de Polling
-const batchActions = [
-  [{
-    label: 'Provisionar Canais Pendentes',
-    icon: 'i-heroicons-server-stack',
-    click: handleProvisionChannels
-  }, {
-    label: 'Corrigir Permissões (Heal)',
-    icon: 'i-heroicons-wrench-screwdriver',
-    click: handleHealChannels
-  }]
-]
+const batchActions = computed(() => {
+  const isSelection = selected.value.length > 0
+  
+  return [
+    [{
+      label: isSelection ? `Provisionar Canais (${selected.value.length} Alunos)` : 'Provisionar Todos Pendentes',
+      icon: 'i-heroicons-server-stack',
+      onSelect: handleProvisionChannels
+    },
+    ...(!isSelection ? [{
+      label: 'Provisionar por Turma...',
+      icon: 'i-heroicons-user-group',
+      onSelect: () => { isSquadModalOpen.value = true }
+    }] : []),
+    {
+      label: 'Corrigir Permissões (Heal Global)',
+      icon: 'i-heroicons-wrench-screwdriver',
+      onSelect: handleHealChannels
+    }]
+  ]
+})
 
 const pollingCycles = ref(0)
 const maxPollingCycles = 12
@@ -176,9 +234,9 @@ function triggerPolling() {
               <UIcon name="i-heroicons-arrow-path" class="animate-spin w-4 h-4" />
               Atualizando ao vivo...
             </span>
-            <UDropdown :items="batchActions" :disabled="!selectedGuildId || isSyncing">
+            <UDropdownMenu :items="batchActions" :disabled="!selectedGuildId || isSyncing">
               <UButton color="white" trailing-icon="i-heroicons-chevron-down-20-solid" label="Ações em Lote" />
-            </UDropdown>
+            </UDropdownMenu>
             <UButton
               label="Sincronizar Discord"
               icon="i-heroicons-arrow-path"
@@ -221,6 +279,7 @@ function triggerPolling() {
 
           <UCard :ui="{ body: { padding: '' } }" class="flex-1">
             <UTable
+              v-model="selected"
               :data="paginatedRows"
               :columns="columns"
               :loading="status === 'pending'"
@@ -267,4 +326,32 @@ function triggerPolling() {
       </div>
     </template>
   </UDashboardPanel>
+
+  <UModal v-model:open="isSquadModalOpen" title="Provisionar por Turma">
+    <template #body>
+      <div class="space-y-4">
+        <p class="text-sm text-gray-500 dark:text-gray-400">
+          Selecione a turma (Squad) para provisionar os canais pendentes de todos os seus alunos.
+        </p>
+        
+        <USelectMenu
+          v-model="selectedSquadForProvision"
+          :items="squads"
+          value-key="id"
+          label-key="name"
+          placeholder="Selecione uma turma..."
+          class="w-full"
+        />
+      </div>
+    </template>
+
+    <template #footer>
+      <div class="flex justify-end gap-3">
+        <UButton color="neutral" variant="outline" @click="isSquadModalOpen = false">Cancelar</UButton>
+        <UButton color="primary" :disabled="!selectedSquadForProvision" @click="handleProvisionBySquad">
+          Provisionar Turma
+        </UButton>
+      </div>
+    </template>
+  </UModal>
 </template>

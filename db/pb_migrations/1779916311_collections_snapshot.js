@@ -22,18 +22,16 @@ migrate((app) => {
     {
         "name": "users",
         "type": "auth",
-        "schema": [
+        "fields": [
             {
                 "name": "name",
                 "type": "text",
                 "required": false,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "min": null,
-                    "max": null,
-                    "pattern": ""
-                }
+                "min": null,
+                "max": null,
+                "pattern": ""
             },
             {
                 "name": "avatar",
@@ -41,19 +39,17 @@ migrate((app) => {
                 "required": false,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "mimeTypes": [
-                        "image/jpeg",
-                        "image/png",
-                        "image/svg+xml",
-                        "image/gif",
-                        "image/webp"
-                    ],
-                    "thumbs": null,
-                    "maxSelect": 1,
-                    "maxSize": 5242880,
-                    "protected": false
-                }
+                "mimeTypes": [
+                    "image/jpeg",
+                    "image/png",
+                    "image/svg+xml",
+                    "image/gif",
+                    "image/webp"
+                ],
+                "thumbs": null,
+                "maxSelect": 1,
+                "maxSize": 5242880,
+                "protected": false
             }
         ],
         "indexes": [],
@@ -77,18 +73,16 @@ migrate((app) => {
     {
         "name": "guilds",
         "type": "base",
-        "schema": [
+        "fields": [
             {
                 "name": "discord_id",
                 "type": "text",
                 "required": true,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "min": null,
-                    "max": null,
-                    "pattern": ""
-                }
+                "min": null,
+                "max": null,
+                "pattern": ""
             },
             {
                 "name": "name",
@@ -96,11 +90,9 @@ migrate((app) => {
                 "required": true,
                 "presentable": true,
                 "unique": false,
-                "options": {
-                    "min": null,
-                    "max": null,
-                    "pattern": ""
-                }
+                "min": null,
+                "max": null,
+                "pattern": ""
             },
             {
                 "name": "status",
@@ -108,13 +100,11 @@ migrate((app) => {
                 "required": false,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "maxSelect": 1,
-                    "values": [
-                        "active",
-                        "archived"
-                    ]
-                }
+                "maxSelect": 1,
+                "values": [
+                    "active",
+                    "archived"
+                ]
             },
             {
                 "name": "announcement_channel_id",
@@ -122,11 +112,33 @@ migrate((app) => {
                 "required": false,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "min": null,
-                    "max": null,
-                    "pattern": ""
-                }
+                "min": null,
+                "max": null,
+                "pattern": ""
+            },
+            {
+                "name": "squad_roles",
+                "type": "json",
+                "required": false,
+                "presentable": false,
+                "unique": false,
+                "maxSize": 2000000
+            },
+            {
+                "name": "mentor_roles",
+                "type": "json",
+                "required": false,
+                "presentable": false,
+                "unique": false,
+                "maxSize": 2000000
+            },
+            {
+                "name": "skill_roles",
+                "type": "json",
+                "required": false,
+                "presentable": false,
+                "unique": false,
+                "maxSize": 2000000
             }
         ],
         "indexes": [
@@ -142,18 +154,16 @@ migrate((app) => {
     {
         "name": "broadcasts",
         "type": "base",
-        "schema": [
+        "fields": [
             {
                 "name": "content",
                 "type": "text",
                 "required": true,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "min": null,
-                    "max": null,
-                    "pattern": ""
-                }
+                "min": null,
+                "max": null,
+                "pattern": ""
             },
             {
                 "name": "target_type",
@@ -161,11 +171,9 @@ migrate((app) => {
                 "required": true,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "min": null,
-                    "max": null,
-                    "pattern": ""
-                }
+                "min": null,
+                "max": null,
+                "pattern": ""
             },
             {
                 "name": "target_roles",
@@ -173,9 +181,7 @@ migrate((app) => {
                 "required": false,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "maxSize": 2000000
-                }
+                "maxSize": 2000000
             },
             {
                 "name": "status",
@@ -183,15 +189,13 @@ migrate((app) => {
                 "required": false,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "maxSelect": 1,
-                    "values": [
-                        "scheduled",
-                        "processing",
-                        "completed",
-                        "failed"
-                    ]
-                }
+                "maxSelect": 1,
+                "values": [
+                    "scheduled",
+                    "processing",
+                    "completed",
+                    "failed"
+                ]
             },
             {
                 "name": "schedule_time",
@@ -199,10 +203,8 @@ migrate((app) => {
                 "required": true,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "min": "",
-                    "max": ""
-                }
+                "min": "",
+                "max": ""
             },
             {
                 "name": "guild_id",
@@ -210,11 +212,9 @@ migrate((app) => {
                 "required": true,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "min": null,
-                    "max": null,
-                    "pattern": ""
-                }
+                "min": null,
+                "max": null,
+                "pattern": ""
             },
             {
                 "name": "metrics_sent",
@@ -222,11 +222,9 @@ migrate((app) => {
                 "required": false,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "min": 0,
-                    "max": null,
-                    "noDecimal": true
-                }
+                "min": 0,
+                "max": null,
+                "noDecimal": true
             },
             {
                 "name": "metrics_errors",
@@ -234,11 +232,9 @@ migrate((app) => {
                 "required": false,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "min": 0,
-                    "max": null,
-                    "noDecimal": true
-                }
+                "min": 0,
+                "max": null,
+                "noDecimal": true
             }
         ],
         "indexes": [],
@@ -275,18 +271,16 @@ migrate((app) => {
     {
         "name": "roles",
         "type": "base",
-        "schema": [
+        "fields": [
             {
                 "name": "discord_id",
                 "type": "text",
                 "required": true,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "min": null,
-                    "max": null,
-                    "pattern": ""
-                }
+                "min": null,
+                "max": null,
+                "pattern": ""
             },
             {
                 "name": "name",
@@ -294,11 +288,9 @@ migrate((app) => {
                 "required": true,
                 "presentable": true,
                 "unique": false,
-                "options": {
-                    "min": null,
-                    "max": null,
-                    "pattern": ""
-                }
+                "min": null,
+                "max": null,
+                "pattern": ""
             },
             {
                 "name": "guild_id",
@@ -306,13 +298,11 @@ migrate((app) => {
                 "required": false,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "collectionId": getColId("guilds"),
-                    "cascadeDelete": false,
-                    "minSelect": null,
-                    "maxSelect": 1,
-                    "displayFields": null
-                }
+                "collectionId": getColId("guilds"),
+                "cascadeDelete": false,
+                "minSelect": null,
+                "maxSelect": 1,
+                "displayFields": null
             },
             {
                 "name": "shift",
@@ -320,14 +310,12 @@ migrate((app) => {
                 "required": false,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "maxSelect": 1,
-                    "values": [
-                        "morning",
-                        "afternoon",
-                        "night"
-                    ]
-                }
+                "maxSelect": 1,
+                "values": [
+                    "morning",
+                    "afternoon",
+                    "night"
+                ]
             },
             {
                 "name": "check_in_time",
@@ -335,11 +323,9 @@ migrate((app) => {
                 "required": false,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "min": null,
-                    "max": null,
-                    "pattern": ""
-                }
+                "min": null,
+                "max": null,
+                "pattern": ""
             },
             {
                 "name": "checkout_cooldown",
@@ -347,35 +333,30 @@ migrate((app) => {
                 "required": false,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "min": null,
-                    "max": null,
-                    "noDecimal": true
-                }
+                "min": null,
+                "max": null,
+                "noDecimal": true
             },
             {
                 "name": "is_monitored",
                 "type": "bool",
                 "required": false,
                 "presentable": false,
-                "unique": false,
-                "options": {}
+                "unique": false
             },
             {
                 "name": "is_active",
                 "type": "bool",
                 "required": false,
                 "presentable": false,
-                "unique": false,
-                "options": {}
+                "unique": false
             },
             {
                 "name": "is_staff",
                 "type": "bool",
                 "required": false,
                 "presentable": false,
-                "unique": false,
-                "options": {}
+                "unique": false
             },
             {
                 "name": "squad_channel_id",
@@ -383,11 +364,9 @@ migrate((app) => {
                 "required": false,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "min": null,
-                    "max": null,
-                    "pattern": ""
-                }
+                "min": null,
+                "max": null,
+                "pattern": ""
             }
         ],
         "indexes": [
@@ -403,20 +382,18 @@ migrate((app) => {
     {
         "name": "activities",
         "type": "base",
-        "schema": [
+        "fields": [
             {
                 "name": "guild_id",
                 "type": "relation",
                 "required": false,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "collectionId": getColId("guilds"),
-                    "cascadeDelete": false,
-                    "minSelect": null,
-                    "maxSelect": 1,
-                    "displayFields": null
-                }
+                "collectionId": getColId("guilds"),
+                "cascadeDelete": false,
+                "minSelect": null,
+                "maxSelect": 1,
+                "displayFields": null
             },
             {
                 "name": "title",
@@ -424,11 +401,9 @@ migrate((app) => {
                 "required": true,
                 "presentable": true,
                 "unique": false,
-                "options": {
-                    "min": null,
-                    "max": null,
-                    "pattern": ""
-                }
+                "min": null,
+                "max": null,
+                "pattern": ""
             },
             {
                 "name": "description",
@@ -436,9 +411,7 @@ migrate((app) => {
                 "required": false,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "convertUrls": false
-                }
+                "convertUrls": false
             },
             {
                 "name": "type",
@@ -446,14 +419,12 @@ migrate((app) => {
                 "required": false,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "maxSelect": 1,
-                    "values": [
-                        "announcement",
-                        "task",
-                        "feedback_request"
-                    ]
-                }
+                "maxSelect": 1,
+                "values": [
+                    "announcement",
+                    "task",
+                    "feedback_request"
+                ]
             },
             {
                 "name": "due_date",
@@ -461,10 +432,8 @@ migrate((app) => {
                 "required": false,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "min": "",
-                    "max": ""
-                }
+                "min": "",
+                "max": ""
             },
             {
                 "name": "status",
@@ -472,14 +441,12 @@ migrate((app) => {
                 "required": false,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "maxSelect": 1,
-                    "values": [
-                        "draft",
-                        "published",
-                        "archived"
-                    ]
-                }
+                "maxSelect": 1,
+                "values": [
+                    "draft",
+                    "published",
+                    "archived"
+                ]
             }
         ],
         "indexes": [],
@@ -493,18 +460,16 @@ migrate((app) => {
     {
         "name": "managers",
         "type": "base",
-        "schema": [
+        "fields": [
             {
                 "name": "discord_id",
                 "type": "text",
                 "required": true,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "min": null,
-                    "max": null,
-                    "pattern": ""
-                }
+                "min": null,
+                "max": null,
+                "pattern": ""
             },
             {
                 "name": "name",
@@ -512,11 +477,9 @@ migrate((app) => {
                 "required": true,
                 "presentable": true,
                 "unique": false,
-                "options": {
-                    "min": null,
-                    "max": null,
-                    "pattern": ""
-                }
+                "min": null,
+                "max": null,
+                "pattern": ""
             },
             {
                 "name": "role",
@@ -524,14 +487,12 @@ migrate((app) => {
                 "required": false,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "maxSelect": 1,
-                    "values": [
-                        "admin",
-                        "mentor",
-                        "pedagogy"
-                    ]
-                }
+                "maxSelect": 1,
+                "values": [
+                    "admin",
+                    "mentor",
+                    "pedagogy"
+                ]
             },
             {
                 "name": "guilds",
@@ -539,13 +500,11 @@ migrate((app) => {
                 "required": false,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "collectionId": getColId("guilds"),
-                    "cascadeDelete": false,
-                    "minSelect": null,
-                    "maxSelect": null,
-                    "displayFields": null
-                }
+                "collectionId": getColId("guilds"),
+                "cascadeDelete": false,
+                "minSelect": null,
+                "maxSelect": null,
+                "displayFields": null
             },
             {
                 "name": "user_id",
@@ -553,13 +512,11 @@ migrate((app) => {
                 "required": false,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "collectionId": getColId("users"),
-                    "cascadeDelete": true,
-                    "minSelect": null,
-                    "maxSelect": 1,
-                    "displayFields": null
-                }
+                "collectionId": getColId("users"),
+                "cascadeDelete": true,
+                "minSelect": null,
+                "maxSelect": 1,
+                "displayFields": null
             }
         ],
         "indexes": [
@@ -575,18 +532,16 @@ migrate((app) => {
     {
         "name": "students",
         "type": "base",
-        "schema": [
+        "fields": [
             {
                 "name": "discord_id",
                 "type": "text",
                 "required": true,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "min": null,
-                    "max": null,
-                    "pattern": ""
-                }
+                "min": null,
+                "max": null,
+                "pattern": ""
             },
             {
                 "name": "username",
@@ -594,11 +549,9 @@ migrate((app) => {
                 "required": true,
                 "presentable": true,
                 "unique": false,
-                "options": {
-                    "min": null,
-                    "max": null,
-                    "pattern": ""
-                }
+                "min": null,
+                "max": null,
+                "pattern": ""
             },
             {
                 "name": "nickname",
@@ -606,11 +559,9 @@ migrate((app) => {
                 "required": false,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "min": null,
-                    "max": null,
-                    "pattern": ""
-                }
+                "min": null,
+                "max": null,
+                "pattern": ""
             },
             {
                 "name": "role_id",
@@ -618,13 +569,11 @@ migrate((app) => {
                 "required": false,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "collectionId": getColId("roles"),
-                    "cascadeDelete": false,
-                    "minSelect": null,
-                    "maxSelect": 1,
-                    "displayFields": null
-                }
+                "collectionId": getColId("roles"),
+                "cascadeDelete": false,
+                "minSelect": null,
+                "maxSelect": 1,
+                "displayFields": null
             },
             {
                 "name": "guild_id",
@@ -632,13 +581,11 @@ migrate((app) => {
                 "required": false,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "collectionId": getColId("guilds"),
-                    "cascadeDelete": false,
-                    "minSelect": null,
-                    "maxSelect": 1,
-                    "displayFields": null
-                }
+                "collectionId": getColId("guilds"),
+                "cascadeDelete": false,
+                "minSelect": null,
+                "maxSelect": 1,
+                "displayFields": null
             },
             {
                 "name": "channel_id",
@@ -646,11 +593,9 @@ migrate((app) => {
                 "required": false,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "min": null,
-                    "max": null,
-                    "pattern": ""
-                }
+                "min": null,
+                "max": null,
+                "pattern": ""
             },
             {
                 "name": "status",
@@ -658,14 +603,12 @@ migrate((app) => {
                 "required": false,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "maxSelect": 1,
-                    "values": [
-                        "active",
-                        "inactive",
-                        "dropped"
-                    ]
-                }
+                "maxSelect": 1,
+                "values": [
+                    "active",
+                    "inactive",
+                    "dropped"
+                ]
             },
             {
                 "name": "secondary_roles",
@@ -673,13 +616,11 @@ migrate((app) => {
                 "required": false,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "collectionId": getColId("roles"),
-                    "cascadeDelete": false,
-                    "minSelect": null,
-                    "maxSelect": null,
-                    "displayFields": null
-                }
+                "collectionId": getColId("roles"),
+                "cascadeDelete": false,
+                "minSelect": null,
+                "maxSelect": null,
+                "displayFields": null
             },
             {
                 "name": "shift",
@@ -687,14 +628,12 @@ migrate((app) => {
                 "required": false,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "maxSelect": 1,
-                    "values": [
-                        "morning",
-                        "afternoon",
-                        "night"
-                    ]
-                }
+                "maxSelect": 1,
+                "values": [
+                    "morning",
+                    "afternoon",
+                    "night"
+                ]
             },
             {
                 "name": "user_id",
@@ -702,13 +641,11 @@ migrate((app) => {
                 "required": false,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "collectionId": getColId("users"),
-                    "cascadeDelete": true,
-                    "minSelect": null,
-                    "maxSelect": 1,
-                    "displayFields": null
-                }
+                "collectionId": getColId("users"),
+                "cascadeDelete": true,
+                "minSelect": null,
+                "maxSelect": 1,
+                "displayFields": null
             }
         ],
         "indexes": [
@@ -724,20 +661,18 @@ migrate((app) => {
     {
         "name": "attendances",
         "type": "base",
-        "schema": [
+        "fields": [
             {
                 "name": "student_id",
                 "type": "relation",
                 "required": false,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "collectionId": getColId("students"),
-                    "cascadeDelete": false,
-                    "minSelect": null,
-                    "maxSelect": 1,
-                    "displayFields": null
-                }
+                "collectionId": getColId("students"),
+                "cascadeDelete": false,
+                "minSelect": null,
+                "maxSelect": 1,
+                "displayFields": null
             },
             {
                 "name": "date",
@@ -745,10 +680,8 @@ migrate((app) => {
                 "required": false,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "min": "",
-                    "max": ""
-                }
+                "min": "",
+                "max": ""
             },
             {
                 "name": "clock_in",
@@ -756,10 +689,8 @@ migrate((app) => {
                 "required": false,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "min": "",
-                    "max": ""
-                }
+                "min": "",
+                "max": ""
             },
             {
                 "name": "clock_out",
@@ -767,10 +698,8 @@ migrate((app) => {
                 "required": false,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "min": "",
-                    "max": ""
-                }
+                "min": "",
+                "max": ""
             },
             {
                 "name": "status",
@@ -778,16 +707,14 @@ migrate((app) => {
                 "required": false,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "maxSelect": 1,
-                    "values": [
-                        "pending_checkout",
-                        "completed",
-                        "absent",
-                        "justified",
-                        "late"
-                    ]
-                }
+                "maxSelect": 1,
+                "values": [
+                    "pending_checkout",
+                    "completed",
+                    "absent",
+                    "justified",
+                    "late"
+                ]
             },
             {
                 "name": "source",
@@ -795,13 +722,11 @@ migrate((app) => {
                 "required": false,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "maxSelect": 1,
-                    "values": [
-                        "discord_bot",
-                        "manual_override"
-                    ]
-                }
+                "maxSelect": 1,
+                "values": [
+                    "discord_bot",
+                    "manual_override"
+                ]
             },
             {
                 "name": "notes",
@@ -809,19 +734,16 @@ migrate((app) => {
                 "required": false,
                 "presentable": false,
                 "unique": false,
-                "options": {
-                    "min": null,
-                    "max": null,
-                    "pattern": ""
-                }
+                "min": null,
+                "max": null,
+                "pattern": ""
             },
             {
                 "name": "checkout_prompt_sent",
                 "type": "bool",
                 "required": false,
                 "presentable": false,
-                "unique": false,
-                "options": {}
+                "unique": false
             }
         ],
         "indexes": [],
@@ -836,6 +758,15 @@ migrate((app) => {
 
   relationalCollections.forEach((colDef) => {
     try {
+      // Re-evaluate relation collectionIds just before saving
+      colDef.fields.forEach(f => {
+        if (f.type === "relation" && typeof f.collectionId === "string") {
+            try {
+                const actualCol = app.findCollectionByNameOrId(f.collectionId);
+                f.collectionId = actualCol.id;
+            } catch(e) {}
+        }
+      });
       const collection = new Collection(colDef);
       app.save(collection);
     } catch (err) {

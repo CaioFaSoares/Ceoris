@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   # 1. App (Nuxt 4)
-  app:
+  ceoris-app:
     build:
       context: ./app
       dockerfile: Dockerfile.dev
@@ -23,7 +23,7 @@ services:
       - server
 
   # 2. Server (Go Fiber)
-  server:
+  ceoris-server:
     build:
       context: ./server
       dockerfile: Dockerfile
@@ -45,7 +45,7 @@ services:
       - .env
 
   # 3. Banco de Dados Standalone (PocketBase Oficial)
-  database:
+  ceoris-database:
     image: ghcr.io/muchobien/pocketbase:latest
     container_name: ceoris-pocketbase
     ports:
@@ -55,7 +55,7 @@ services:
       - ./db/pb_migrations:/pb_migrations
     networks:
       - ceoris_net
-    command: ["serve", "--http=0.0.0.0:8090"]
+    command: [ "serve", "--http=0.0.0.0:8090", "--dir=/pb_data", "--migrationsDir=/pb_migrations" ]
     env_file:
       - .env
 
